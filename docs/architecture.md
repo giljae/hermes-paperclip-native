@@ -46,8 +46,23 @@ Paperclip 설치 페이로드가 **3.5GB** 규모다. 화면에 "약 2분"이라
 `VERSION` 조회 → zip 다운로드 → `checksums.txt` 대조 → 압축 해제 → `core/run.sh` 존재 →
 `bootstrap.sh` 실행 권한 유지까지 실제 릴리스에서 확인했다.
 
-### 아직 사람이 확인해야 하는 것
+### macOS Gatekeeper — 실측 결과 (해결됨)
 
-macOS Gatekeeper: 인터넷에서 받아 압축을 푼 `설치.command` 를 **우클릭 → 열기**로 실행했을 때
-경고를 통과할 수 있는지. `spctl --assess` 는 서명 없는 파일을 모두 거부하므로 판별에 쓸 수 없고,
-실제 더블클릭은 GUI 상호작용이 필요해 자동화할 수 없다.
+`xattr` 로 실제 격리 플래그를 붙인 `.command` 를 만들어 측정했다.
+
+| 확인 | 결과 |
+|---|---|
+| `syspolicy_check distribution <file>` | **"App has failed one or more pre-distribution checks · Codesign Error"** |
+| `open <file>` | **error -128** (`_LSOpenURLsWithCompletionHandler() failed`) |
+| 스크립트 실행 여부 | **실행되지 않음** (마커 파일 없음, Terminal 프로세스 없음) |
+| 화면 | `CoreServicesUIAgent` 경고 다이얼로그 표시 |
+
+**결론: 격리된 `.command` 는 최신 macOS에서 그냥 열리지 않는다.** 최신 macOS는 서명 없는
+스크립트에 대해 우클릭 → 열기 우회를 제공하지 않고, 시스템 설정 → 개인정보 보호 및 보안 →
+"그래도 열기" 를 거쳐야 한다. 비개발자에게 이건 사실상 통행 불가다.
+
+**그래서 주 진입점을 바꿨다.** `entry/사용방법.html` 은 이제 **한 줄 명령을 권장 경로로 먼저**
+안내하고, 파일 직접 실행은 "경고로 막히며 우회 절차가 필요하다"고 명시한 두 번째 방법으로 둔다.
+한 줄 명령은 Gatekeeper를 아예 거치지 않는다(curl 로 받은 텍스트를 셸이 실행할 뿐이다).
+
+스펙 6절이 예상한 분기("우클릭→열기가 막히면 한 줄 설치를 기본으로 안내한다")가 이걸로 확정됐다.

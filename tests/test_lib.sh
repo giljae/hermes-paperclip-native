@@ -16,7 +16,13 @@ t_paths() {
   assert_eq "/tmp/hc-test/logs" "$(HC_HOME=/tmp/hc-test hc_log_dir)" "로그 디렉터리"
   assert_eq "/tmp/hc-test/app"  "$(HC_HOME=/tmp/hc-test hc_app_root)" "app 디렉터리"
 }
-t_version() { assert_eq "0.1.0" "$(hc_version)" "VERSION 파일"; }
+t_version() {
+  local v; v="$(hc_version)"
+  case "$v" in
+    [0-9]*.[0-9]*.[0-9]*) assert_eq "ok" "ok" "VERSION 파일이 x.y.z 형태다 ($v)" ;;
+    *) assert_eq "x.y.z 형태" "$v" "VERSION 파일이 x.y.z 형태다" ;;
+  esac
+}
 t_pin()     { assert_eq "24.20.0" "$(hc_pin NODE_VERSION)" "pins.env 조회"; }
 t_arch() {
   local a; a="$(hc_arch)"

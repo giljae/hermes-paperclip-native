@@ -9,6 +9,7 @@
   h1 { font-size: 28px; } h2 { font-size: 20px; margin-top: 36px; }
   .box { background: #f5f5f7; border-radius: 12px; padding: 18px 22px; margin: 18px 0; }
   .warn { background: #fff4e5; border-left: 4px solid #ff9500; }
+  .ok   { background: #eefbf0; border-left: 4px solid #34c759; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
   pre { background: #1d1d1f; color: #f5f5f7; padding: 14px 16px; border-radius: 8px; overflow-x: auto; }
   .tag { display:inline-block; background:#0071e3; color:#fff; border-radius:6px;
@@ -20,7 +21,7 @@
 <body>
 
 <h1>Hermes + Paperclip 설치 안내</h1>
-<p>이 문서는 <strong>터미널을 쓰지 않는 분</strong>을 위한 안내입니다. 순서대로만 따라 하시면 됩니다.</p>
+<p>이 문서는 <strong>터미널을 잘 모르는 분</strong>을 위한 안내입니다. 순서대로만 따라 하시면 됩니다.</p>
 
 <div class="box warn">
   <strong>먼저 알아두세요</strong>
@@ -31,23 +32,43 @@
   </ul>
 </div>
 
-<h2>방법 1. 더블클릭으로 설치 (권장)</h2>
+<h2>설치 방법 <span class="tag">권장</span> — 복사해서 붙여넣기</h2>
+
+<div class="box ok">
+  <strong>이 방법을 권합니다.</strong> 아래 한 줄을 복사해 터미널에 붙여넣고 Enter만 누르면 됩니다.
+  macOS의 “확인되지 않은 개발자” 경고가 <strong>전혀 뜨지 않습니다.</strong>
+</div>
+
 <ol>
-  <li>압축 파일(<code>HermesPaperclip-macOS.zip</code>)의 압축을 풉니다.</li>
-  <li><code>설치.command</code> 파일을 <strong>우클릭</strong>한 뒤 <strong>열기</strong>를 선택합니다.
-      <div class="box muted">그냥 더블클릭하면 macOS가 “확인되지 않은 개발자”라고 막을 수 있습니다.
-        그때도 <strong>우클릭 → 열기</strong>로 진행하면 됩니다.</div></li>
-  <li>“열겠습니까?”라는 창이 뜨면 <strong>열기</strong>를 누릅니다.</li>
-  <li>검은 창에서 한국어로 진행 상황이 나옵니다. <strong>Enter를 누르지 말고 기다리세요.</strong></li>
-  <li>끝나면 브라우저가 자동으로 열리고, 대시보드가 보입니다.</li>
-  <li>홈 폴더에 <code>HermesPaperclip</code> 폴더가 생깁니다. 나중에 켜고 끄고 지울 때 씁니다.
-      처음 받은 압축 파일은 이제 지워도 됩니다.</li>
+  <li><strong>터미널</strong>을 엽니다.
+      <div class="box muted">Spotlight(<kbd>⌘</kbd> + <kbd>Space</kbd>)를 열고 <strong>터미널</strong>을 입력한 뒤 Enter를 누르세요.</div></li>
+  <li>아래 한 줄을 <strong>복사</strong>(오른쪽 클릭 → 복사)합니다.
+<pre>curl -fsSL https://github.com/giljae/hermes-paperclip-native/releases/latest/download/bootstrap.sh | bash</pre></li>
+  <li>터미널 창을 한 번 클릭한 뒤 <kbd>⌘</kbd> + <kbd>V</kbd> 로 붙여넣고 <kbd>Enter</kbd> 를 누릅니다.</li>
+  <li>한국어로 진행 상황이 나옵니다. <strong>끝날 때까지 기다리세요.</strong></li>
+  <li>끝나면 브라우저가 자동으로 열리고 대시보드가 보입니다.
+      홈 폴더에 <code>HermesPaperclip</code> 폴더가 생깁니다 — 앞으로 켜고 끄고 지울 때 씁니다.</li>
 </ol>
 
-<h2>방법 1이 막히면 — 터미널 한 줄</h2>
-<p>아래 한 줄을 복사해서 터미널(Terminal)에 붙여넣고 Enter를 누르세요. 이 방법은 macOS 경고가 뜨지 않습니다.</p>
-<pre>curl -fsSL https://github.com/giljae/hermes-paperclip-native/releases/latest/download/bootstrap.sh | bash</pre>
-<p class="muted">터미널 여는 법: Spotlight(⌘ + Space)에서 “터미널”을 검색해 실행합니다.</p>
+<p class="muted">“한 줄짜리 스크립트를 인터넷에서 바로 실행하는 게 찝찝하다”면, 그 판단이 맞습니다.
+   그럴 때는 아래 방법으로 파일을 직접 받아 눈으로 확인한 뒤 실행하세요.</p>
+
+<h2>설치 방법 2 — 파일을 직접 받아서</h2>
+
+<div class="box warn">
+  <strong>이 방법은 macOS가 경고로 막습니다.</strong> 최신 macOS는 인터넷에서 받은 스크립트를
+  그냥 실행하지 못하게 합니다(서명이 없기 때문입니다). 아래 <strong>“막혔을 때”</strong> 절차가 필요합니다.
+</div>
+
+<ol>
+  <li>릴리스 페이지에서 <code>HermesPaperclip-macOS.zip</code> 을 내려받아 압축을 풉니다.</li>
+  <li><code>설치.command</code> 를 <strong>우클릭 → 열기</strong> 합니다.</li>
+  <li><strong>“확인되지 않은 개발자”</strong> 창이 뜨고 <strong>열기 버튼이 없으면</strong>
+      → <strong>시스템 설정 → 개인정보 보호 및 보안</strong> 으로 가서 아래쪽
+      <strong>“그래도 열기”</strong> 를 누른 뒤 다시 시도합니다.
+      <div class="box muted">macOS 버전에 따라 이 단계가 없거나 이름이 다를 수 있습니다.</div></li>
+  <li>경고를 통과하면 검은 창에서 한국어 진행이 시작됩니다.</li>
+</ol>
 
 <h2>설치가 끝난 뒤 — AI 연결</h2>
 <p>설치만으로는 AI가 연결되지 않습니다. <code>HermesPaperclip</code> 폴더의
@@ -64,9 +85,10 @@
 <h2>문제가 생겼을 때</h2>
 <div class="box">
   <ul>
-    <li><strong>창이 “확인되지 않은 개발자”라고 막을 때</strong> — 그 파일을 <strong>우클릭 → 열기</strong>로 실행하세요.</li>
+    <li><strong>“확인되지 않은 개발자”로 막힐 때</strong> — 시스템 설정 → 개인정보 보호 및 보안 → <strong>그래도 열기</strong>.
+        또는 위의 <strong>설치 방법(한 줄)</strong> 를 쓰세요.</li>
     <li><strong>진행이 멈춘 것 같을 때</strong> — 실제로는 내려받는 중일 수 있습니다. 30분까지 기다려 보세요.</li>
-    <li><strong>다시 시도할 때</strong> — <code>설치.command</code>를 다시 실행하면 됩니다. 이미 된 단계는 건너뜁니다.</li>
+    <li><strong>다시 시도할 때</strong> — 같은 명령을 다시 실행하면 됩니다. 이미 된 단계는 건너뜁니다.</li>
     <li><strong>기록을 보내야 할 때</strong> — <code>~/.hermes-paperclip-native/logs/</code> 폴더의 파일을 전달해 주세요.</li>
   </ul>
 </div>
