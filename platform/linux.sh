@@ -61,3 +61,21 @@ p_open_browser() {
   xdg-open "$1" >/dev/null 2>&1 &
   return 0
 }
+
+# 마커는 macOS 와 같은 한 줄을 쓴다(중복 검사가 grep -c == 1 로 단순해진다).
+# ~/.profile 은 로그인 셸, ~/.bashrc 는 비대화형 셸(`ssh host '명령'`)을 담당하므로
+# 둘 다에 넣는다. 한쪽만 넣으면 "설치했는데 명령이 없다"가 된다.
+p_persist_path() {
+  local marker='# hermes-paperclip: PATH' f
+  for f in "$HOME/.profile" "$HOME/.bashrc"; do
+    touch "$f" 2>/dev/null || continue
+    if grep -qF "$marker" "$f" 2>/dev/null; then
+      continue
+    fi
+    {
+      printf '%s\n' "$marker"
+      printf 'export PATH="$HOME/.local/bin:$PATH"\n'
+    } >> "$f"
+  done
+  return 0
+}

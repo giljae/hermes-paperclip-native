@@ -23,4 +23,17 @@ t_headless()       { DISPLAY= WAYLAND_DISPLAY= p_has_display; assert_status 1 $?
 t_display()        { DISPLAY=:0 p_has_display; assert_status 0 $? "DISPLAY 가 있으면 GUI"; }
 t_open_no_xdg()    { PATH="/nonexistent" p_open_browser "http://x" >/dev/null 2>&1; assert_status 1 $? "xdg-open 이 없으면 실패를 반환한다(죽지 않는다)"; }
 t_require_ok_on_mac() { p_require_supported >/dev/null 2>&1; assert_status 0 $? "현재 사용자로는 통과한다(root 아님)"; }
-run_tests t_detect t_arch t_paths t_node_url_x64 t_node_url_arm64 t_url_default t_headless t_display t_open_no_xdg t_require_ok_on_mac
+t_persist_profile() {
+  export HOME="$(mktemp -d)"; : > "$HOME/.bashrc"; : > "$HOME/.profile"
+  p_persist_path; p_persist_path
+  assert_eq "1" "$(grep -c 'hermes-paperclip' "$HOME/.profile")" "profile 에 한 번만"
+  assert_contains "$(cat "$HOME/.bashrc")" '.local/bin' "bashrc 에도 넣는다(비대화형 셸)"
+}
+t_persist_idempotent() {
+  export HOME="$(mktemp -d)"; : > "$HOME/.profile"; : > "$HOME/.bashrc"
+  p_persist_path; p_persist_path; p_persist_path
+  assert_eq "1" "$(grep -c 'hermes-paperclip' "$HOME/.profile")" "여러 번 실행해도 한 번만"
+  assert_eq "1" "$(grep -c 'hermes-paperclip' "$HOME/.bashrc")" "bashrc 도 한 번만"
+}
+run_tests t_detect t_arch t_paths t_node_url_x64 t_node_url_arm64 t_url_default t_headless t_display t_open_no_xdg t_require_ok_on_mac \
+          t_persist_profile t_persist_idempotent

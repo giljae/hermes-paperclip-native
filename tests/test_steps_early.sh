@@ -44,5 +44,12 @@ t_preflight_calls_require() {
   local out; out="$(HC_SKIP_NETWORK=1 step_preflight 2>&1)" || true
   assert_contains "$out" "CALLED" "지원 판정이 있으면 호출한다"
 }
-run_tests t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry \
+t_step_node_persists_path() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
+  p_install_node() { return 0; }
+  p_persist_path() { printf 'PERSISTED'; return 0; }
+  local out; out="$(HC_DRY_RUN=1 step_node 2>&1)" || true
+  assert_contains "$out" "PERSISTED" "step_node 가 PATH 등록을 호출한다"
+}
+run_tests t_step_node_persists_path t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry \
           t_preflight_without_require t_preflight_calls_require
