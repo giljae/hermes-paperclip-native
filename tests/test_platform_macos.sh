@@ -58,7 +58,24 @@ t_hermes_pins() {
 t_pc_pins() { local out; out="$(HC_DRY_RUN=1 p_install_paperclip)"; assert_contains "$out" "paperclipai@2026.1117.0 install" "Paperclip 버전 핀"; }
 t_pc_env()  { p_paperclip_env; assert_eq "$HOME/.paperclip" "$PAPERCLIP_HOME" "PAPERCLIP_HOME 을 홈 데이터로 고정"; }
 t_pc_skip() { mkdir -p "$(p_bin_dir)"; : > "$(p_bin_dir)/paperclipai"; chmod +x "$(p_bin_dir)/paperclipai"; p_install_paperclip; assert_status 0 $? "이미 있으면 건너뛴다"; }
+t_plist_render() {
+  local out; out="$(p_autostart_render)"
+  assert_contains "$out" "<string>$HOME/.local/bin:$HOME/.local/node/bin:" "PATH 를 plist 에 명시"
+  assert_contains "$out" "<string>$HOME/.local/bin/paperclipai</string>" "paperclipai 실행"
+  assert_contains "$out" "ing.hermes-paperclip.agent" "라벨"
+  assert_contains "$out" "$(hc_home)/logs/server.log" "로그 경로"
+}
+t_plist_no_placeholder() {
+  local out; out="$(p_autostart_render)"
+  assert_contains "$out" "<plist" "plist 본문이 나온다"
+  if printf '%s' "$out" | grep -q '@@'; then assert_eq "no-placeholder" "found" "@@ 치환이 남아 있다"; else assert_eq "ok" "ok" "@@ 치환 완료"; fi
+}
+t_status_absent() {
+  export HOME="$(mktemp -d)"
+  assert_eq "absent" "$(p_autostart_status)" "plist 가 없으면 absent"
+}
 run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
           t_install_node_skips t_persist_once t_install_node_unsets_other_node \
           t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins \
-          t_pc_pins t_pc_env t_pc_skip
+          t_pc_pins t_pc_env t_pc_skip \
+          t_plist_render t_plist_no_placeholder t_status_absent

@@ -166,3 +166,59 @@ p_install_paperclip() {
   p_run npx --yes "paperclipai@$v" install || hc_die "Paperclip 설치에 실패했습니다."
   [ -n "${HC_DRY_RUN:-}" ] || p_paperclip_present
 }
+
+# --- 자동 시작 (LaunchAgent) --------------------------------------------
+#
+# Paperclip 자체 `service` 를 쓰지 않는 이유: launchd 는 PATH 를 비워 두므로
+# 어댑터가 `hermes` 를 찾지 못한다. 우리 plist 는 PATH 를 명시한다.
+
+p_autostart_label() { printf 'ing.hermes-paperclip.agent'; }
+
+p_autostart_plist() {
+  printf '%s/Library/LaunchAgents/%s.plist' "$HOME" "$(p_autostart_label)"
+}
+
+p_autostart_render() {
+  local tpl path
+  tpl="$(hc_root)/platform/launchagent.plist.template"
+  [ -f "$tpl" ] || hc_die "자동 시작 템플릿을 찾을 수 없습니다: $tpl"
+  path="$(p_bin_dir):$(p_node_dir)/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  sed -e "s|@@LABEL@@|$(p_autostart_label)|g" \
+      -e "s|@@PAPERCLIP@@|$(p_bin_dir)/paperclipai|g" \
+      -e "s|@@PATH@@|$path|g" \
+      -e "s|@@HOME@@|$HOME|g" \
+      -e "s|@@DATA_DIR@@|$(p_data_dir)|g" \
+      -e "s|@@LOG@@|$(hc_home)/logs/server.log|g" \
+      -e "s|@@LOG_ERR@@|$(hc_home)/logs/server.err.log|g" \
+      "$tpl"
+}
+
+p_autostart_install() {
+  [ -n "${HC_SKIP_AUTOSTART:-}" ] && return 0
+  local plist; plist="$(p_autostart_plist)"
+  mkdir -p "$(dirname "$plist")"
+  p_autostart_render > "$plist" || return 1
+  p_run launchctl bootout "gui/$UID/$(p_autostart_label)" >/dev/null 2>&1 || true
+  p_run launchctl bootstrap "gui/$UID" "$plist" || hc_die "자동 시작 등록에 실패했습니다."
+  return 0
+}
+
+p_autostart_remove() {
+  local plist; plist="$(p_autostart_plist)"
+  p_run launchctl bootout "gui/$UID/$(p_autostart_label)" >/dev/null 2>&1 || true
+  [ -f "$plist" ] && rm -f "$plist"
+  return 0
+}
+
+p_autostart_status() {
+  local plist; plist="$(p_autostart_plist)"
+  if [ ! -f "$plist" ]; then
+    printf 'absent'
+    return 0
+  fi
+  if launchctl print "gui/$UID/$(p_autostart_label)" >/dev/null 2>&1; then
+    printf 'running'
+  else
+    printf 'stopped'
+  fi
+}
