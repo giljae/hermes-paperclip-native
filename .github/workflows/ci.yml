@@ -137,4 +137,5 @@ jobs:
           path: |
             ${{ runner.temp }}/hc-smoke-*/home/.hermes-paperclip-native/**
             ${{ runner.temp }}/hc-smoke-*/home/.paperclip/**
+          include-hidden-files: true
           if-no-files-found: ignore

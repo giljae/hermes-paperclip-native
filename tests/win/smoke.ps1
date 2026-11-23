@@ -35,7 +35,20 @@ function Fail {
     param([string]$Message)
     Write-Host ""
     Write-Host "SMOKE FAIL: $Message" -ForegroundColor Red
+    # 실패 원인을 CI 로그에서 바로 볼 수 있게 로그 꼬리를 출력한다(아티팩트는
+    # 숨김 파일 제외 등으로 누락될 수 있다).
+    foreach ($name in @("install.log", "onboard.log", "seed.log", "server.log", "server.err.log", "paperclip.log")) {
+        $p = Join-Path $env:HC_HOME "logs\$name"
+        if (Test-Path -LiteralPath $p) {
+            Write-Host "--- $name (tail) ---" -ForegroundColor Yellow
+            Get-Content -LiteralPath $p -Tail 50 | ForEach-Object { Write-Host $_ }
+        }
+    }
     Write-Host "가짜 홈을 보존했습니다: $FakeHome"
+    if ($script:InstallOut) {
+        Write-Host "--- 설치 출력 (tail) ---" -ForegroundColor Yellow
+        ($script:InstallOut -split "`n" | Select-Object -Last 60) | ForEach-Object { Write-Host $_ }
+    }
     $script:Keep = $true
     throw "SMOKE FAIL"
 }
@@ -57,6 +70,7 @@ try {
 
     Step "1) 설치"
     $r = Invoke-Bootstrap @("install")
+    $script:InstallOut = $r.Out
     if ($r.Code -ne 0) { Fail "설치가 실패했다 (exit $($r.Code))`n$($r.Out)" }
 
     if (-not $Real) {
