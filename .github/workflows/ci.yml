@@ -59,6 +59,16 @@ jobs:
           HC_NO_COLOR: "1"
         run: bash tests/smoke.sh
 
+  test-windows:
+    name: Windows 단위 테스트
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PowerShell 테스트
+        shell: pwsh
+        run: ./tests/win/run.ps1
+
   smoke-real:
     name: 실제 설치 스모크 · macOS (수동 전용 · 무겁다)
     if: github.event_name == 'workflow_dispatch'

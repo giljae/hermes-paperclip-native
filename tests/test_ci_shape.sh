@@ -12,4 +12,6 @@ t_ci_nostart() { assert_contains "$(cat "$CI" 2>/dev/null)" "HC_SKIP_AUTOSTART" 
 t_ci_ubuntu()      { assert_contains "$(cat "$CI" 2>/dev/null)" "ubuntu-latest" "ubuntu 러너"; }
 t_ci_linux_smoke() { assert_contains "$(cat "$CI" 2>/dev/null)" "test-linux" "리눅스 잡 존재"; }
 t_ci_real_linux() { assert_contains "$(cat "$CI" 2>/dev/null)" "smoke-real-linux" "리눅스 실설치 잡"; }
-run_tests t_ci_real_linux t_ci_exists t_ci_macos t_ci_test t_ci_smoke t_ci_nostart t_ci_ubuntu t_ci_linux_smoke
+t_ci_windows()  { assert_contains "$(cat "$CI" 2>/dev/null)" "windows-latest" "windows 러너"; }
+t_ci_win_run()  { assert_contains "$(cat "$CI" 2>/dev/null)" "tests/win/run.ps1" "PowerShell 테스트 실행"; }
+run_tests t_ci_windows t_ci_win_run t_ci_real_linux t_ci_exists t_ci_macos t_ci_test t_ci_smoke t_ci_nostart t_ci_ubuntu t_ci_linux_smoke
