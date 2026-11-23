@@ -6,6 +6,9 @@
 # 경로는 항상 큰따옴표/LiteralPath 로 다룬다. 한글 사용자명(`C:\Users\김철수`)과
 # 공백을 전제로 한다.
 
+# 이 파일이 로드될 때의 위치 = <root>\win (자동 시작 명령이 여기를 가리킨다).
+$script:HcWinDir = $PSScriptRoot
+
 function Get-HcAppDir {
     if ($env:HC_HOME) { return $env:HC_HOME }
     return "$env:LOCALAPPDATA\hermes-paperclip-native"
@@ -195,4 +198,94 @@ function Install-HcNode {
     Add-HcToUserPath
     Add-HcPathEntry $nodeDir
     return (Test-HcNodePresent)
+}
+
+# --- 백그라운드 서버 러너 ---------------------------------------------------
+# 셸 구현과 같은 계약: pidfile 은 HC_HOME\server.pid, 로그는 HC_HOME\logs.
+# 자동 시작이 불가한 환경(Task Scheduler 권한 없음)에서 코어가 여기로 폴백한다.
+
+function Get-HcServerPidFile { return (Join-Path (Get-HcAppDir) "server.pid") }
+
+function Test-HcServerRunning {
+    $f = Get-HcServerPidFile
+    if (-not (Test-Path -LiteralPath $f)) { return $false }
+    $raw = (Get-Content -LiteralPath $f -Raw).Trim()
+    $serverPid = 0
+    if (-not [int]::TryParse($raw, [ref]$serverPid)) { return $false }
+    try { $p = Get-Process -Id $serverPid -ErrorAction Stop } catch { return $false }
+    return ($null -ne $p)
+}
+
+function Start-HcServerBackground {
+    if (Test-HcServerRunning) { return $true }
+    if ($env:HC_DRY_RUN) { Write-Host "paperclipai run (백그라운드)"; return $true }
+    New-Item -ItemType Directory -Force -Path (Get-HcAppDir), (Get-HcLogDir) | Out-Null
+    $env:PAPERCLIP_HOME = Get-HcDataDir
+    Add-HcPathEntry (Get-HcBinDir)
+    $exe = Join-Path (Get-HcBinDir) "paperclipai.cmd"
+    if (-not (Test-Path -LiteralPath $exe)) { $exe = "paperclipai" }
+    $log = Join-Path (Get-HcLogDir) "server.log"
+    $err = Join-Path (Get-HcLogDir) "server.err.log"
+    $proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$exe`" run" `
+        -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError $err -PassThru
+    Set-Content -LiteralPath (Get-HcServerPidFile) -Value "$($proc.Id)" -Encoding ascii
+    return $true
+}
+
+function Stop-HcServerBackground {
+    $f = Get-HcServerPidFile
+    if (-not (Test-Path -LiteralPath $f)) { return $true }
+    $raw = (Get-Content -LiteralPath $f -Raw).Trim()
+    $serverPid = 0
+    if ([int]::TryParse($raw, [ref]$serverPid)) {
+        try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
+    }
+    Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+    return $true
+}
+
+# --- 자동 시작 (Task Scheduler) --------------------------------------------
+# schtasks /Create 는 관리자 권한이 없으면 실패할 수 있다. 그 경우 예외를 던지지
+# 않고 $false 를 돌려준다 — 코어가 백그라운드 러너로 폴백한다(오류가 아니다).
+
+function Get-HcAutostartTaskName { return "hermes-paperclip" }
+
+function Get-HcAutostartCommand {
+    $cmd = Join-Path $script:HcWinDir "commands.ps1"
+    return "powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$cmd`" start"
+}
+
+function Test-HcSchedulerAvailable {
+    return ($null -ne (Get-Command schtasks -ErrorAction SilentlyContinue))
+}
+
+function Install-HcAutostart {
+    param([switch]$AssumeNoScheduler)
+    if ($env:HC_SKIP_AUTOSTART) { return $true }
+    if ($AssumeNoScheduler) { return $false }
+    if (-not (Test-HcSchedulerAvailable)) { return $false }
+    try {
+        & schtasks /Create /SC ONLOGON /TN (Get-HcAutostartTaskName) /TR (Get-HcAutostartCommand) /F 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { return $false }
+    } catch {
+        return $false
+    }
+    return $true
+}
+
+function Remove-HcAutostart {
+    if (-not (Test-HcSchedulerAvailable)) { return $true }
+    try { & schtasks /Delete /TN (Get-HcAutostartTaskName) /F 2>$null | Out-Null } catch { }
+    return $true
+}
+
+function Get-HcAutostartStatus {
+    if (-not (Test-HcSchedulerAvailable)) { return "absent" }
+    $out = ""
+    try {
+        $out = (& schtasks /Query /TN (Get-HcAutostartTaskName) 2>$null | Out-String)
+        if ($LASTEXITCODE -ne 0) { return "absent" }
+    } catch { return "absent" }
+    if ($out -match "Running") { return "running" }
+    return "stopped"
 }

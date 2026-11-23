@@ -85,5 +85,29 @@ $script:Tests = @(
         $bin = Get-HcBinDir
         $n = ($script:HcTestUserPath.Split(';') | Where-Object { $_.Trim() -ieq $bin }).Count
         Assert-Equal 1 $n "중복 없음"
+    } },
+    @{ Name = "schtasks 를 쓸 수 없으면 false 를 돌려준다(예외 아님)"; Body = {
+        function global:schtasks { throw "unavailable" }
+        try {
+            $r = Install-HcAutostart
+            Assert-Equal $false $r "폴백 신호"
+        } finally {
+            Remove-Item function:global:schtasks -ErrorAction SilentlyContinue
+        }
+    } },
+    @{ Name = "백그라운드 pidfile 수명주기"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        Assert-Equal $false (Test-HcServerRunning) "처음엔 아님"
+        Set-Content -LiteralPath (Get-HcServerPidFile) -Value "999999" -Encoding ascii
+        Assert-Equal $false (Test-HcServerRunning) "죽은 pid 는 아님"
+        Set-Content -LiteralPath (Get-HcServerPidFile) -Value "$PID" -Encoding ascii
+        Assert-Equal $true (Test-HcServerRunning) "살아 있는 pid 는 켜짐"
+        Set-Content -LiteralPath (Get-HcServerPidFile) -Value "999999" -Encoding ascii
+        Stop-HcServerBackground | Out-Null
+        Assert-True (-not (Test-Path -LiteralPath (Get-HcServerPidFile))) "pidfile 삭제"
+    } },
+    @{ Name = "자동 시작 상태는 등록이 없으면 absent 다"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        Assert-Equal "absent" (Get-HcAutostartStatus) "등록 없음"
     } }
 )
