@@ -22,3 +22,32 @@ Task 14 에서 실측을 시도했다. 임시 HOME 에서 `npx paperclipai@2026.
 
 Paperclip 설치 페이로드가 **3.5GB** 규모다. 화면에 "약 2분"이라 적는 것은 현실과 맞지 않는다 — 진행 표시를
 단계별로 두고, 오래 걸린다는 안내를 넣는다.
+
+## 배포물과 릴리스 (P4 일부 앞당김)
+
+`make dist` 가 두 개의 zip 을 만든다.
+
+| 파일 | 용도 |
+|---|---|
+| `HermesPaperclip-macOS-<ver>.zip` | 더블클릭용. `설치.command` + `사용방법.html` + 코어 |
+| `hermes-paperclip-<ver>.zip` | `bootstrap.sh` 가 내려받는 알맹이(모든 OS). 루트에 `core/`, `platform/` |
+| `checksums.txt` | sha256 |
+
+**`ditto -c -k` 를 쓴다.** `zip` 명령이나 다른 도구는 실행 권한(`+x`)을 잃을 수 있고,
+그러면 `설치.command` 를 더블클릭해도 실행되지 않는다. `tests/test_dist.sh` 가 이걸 실제로
+검증한다(zip 을 풀어 `-x` 비트를 확인).
+
+`make release` 는 `gh release create` 로 GitHub Releases 에 올린다. `bootstrap.sh` 는
+`releases/latest/download/VERSION` 을 읽어 버전을 알아내므로, 릴리스에 `VERSION` 파일이
+반드시 함께 올라가야 한다.
+
+### 릴리스 다운로드 경로 (검증됨, v0.1.0)
+
+`VERSION` 조회 → zip 다운로드 → `checksums.txt` 대조 → 압축 해제 → `core/run.sh` 존재 →
+`bootstrap.sh` 실행 권한 유지까지 실제 릴리스에서 확인했다.
+
+### 아직 사람이 확인해야 하는 것
+
+macOS Gatekeeper: 인터넷에서 받아 압축을 푼 `설치.command` 를 **우클릭 → 열기**로 실행했을 때
+경고를 통과할 수 있는지. `spctl --assess` 는 서명 없는 파일을 모두 거부하므로 판별에 쓸 수 없고,
+실제 더블클릭은 GUI 상호작용이 필요해 자동화할 수 없다.
