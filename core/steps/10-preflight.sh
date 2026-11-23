@@ -3,6 +3,19 @@
 
 HC_MIN_DISK_GB=3
 
+# 남은 공간을 KB 로 돌려준다.
+#
+# df -g 는 macOS 전용이라 Linux(GNU df)에서 실패한다 — 그래서 -Pk(POSIX, 1K 블록)를
+# 쓴다. ubuntu CI 가 이 버그를 잡았다.
+preflight_available_kb() {
+  local kb
+  kb="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
+  case "$kb" in
+    ''|*[!0-9]*) kb=0 ;;
+  esac
+  printf '%s' "$kb"
+}
+
 step_preflight() {
   p_detect
 
@@ -12,11 +25,10 @@ step_preflight() {
     p_require_supported
   fi
 
-  local avail
-  avail="$(df -g "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
-  [ -n "$avail" ] || avail=0
-  if [ "$avail" -lt "$HC_MIN_DISK_GB" ] 2>/dev/null; then
-    hc_die "저장 공간이 부족합니다 (여유 ${avail}GB, ${HC_MIN_DISK_GB}GB 필요)."
+  local avail_kb
+  avail_kb="$(preflight_available_kb)"
+  if [ "$avail_kb" -lt $((HC_MIN_DISK_GB * 1048576)) ] 2>/dev/null; then
+    hc_die "저장 공간이 부족합니다 (여유 $((avail_kb / 1048576))GB, ${HC_MIN_DISK_GB}GB 필요)."
   fi
 
   if [ -z "${HC_SKIP_NETWORK:-}" ]; then

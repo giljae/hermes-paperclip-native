@@ -52,5 +52,10 @@ t_step_node_persists_path() {
   local out; out="$(HC_DRY_RUN=1 step_node 2>&1)" || true
   assert_contains "$out" "PERSISTED" "step_node 가 PATH 등록을 호출한다"
 }
-run_tests t_step_node_persists_path t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry \
+t_disk_parse() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
+  local kb; kb="$(preflight_available_kb)"
+  assert_status 0 "$([ -n "$kb" ] && [ "$kb" -gt 0 ]; echo $?)" "여유 공간을 KB 로 읽는다"
+}
+run_tests t_disk_parse t_step_node_persists_path t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry \
           t_preflight_without_require t_preflight_calls_require
