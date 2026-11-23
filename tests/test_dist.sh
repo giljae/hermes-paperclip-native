@@ -2,6 +2,10 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/helpers.sh"
+
+# dist 는 macOS 에서 만드는 릴리스 작업이다(ditto 로 zip 을 만들며, 실행 권한 보존이
+# zip 명령보다 확실하다). macOS 가 아니면 건너뛴다 — macOS CI 잡이 이 경로를 검증한다.
+[ "$(uname -s)" = "Darwin" ] || { printf 'dist 테스트는 macOS 에서만 실행됩니다 (건너뜀)\n'; exit 0; }
 ROOT="$(cd "$HERE/.." && pwd)"
 DIST="$ROOT/dist"
 VER="$(cat "$ROOT/VERSION")"

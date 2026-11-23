@@ -14,6 +14,8 @@ test:
 #   dist/hermes-paperclip-<ver>.zip       — bootstrap 이 내려받는 알맹이(모든 OS)
 #   dist/checksums.txt                    — sha256
 #
+# macOS 전용이다(ditto 사용). 릴리스는 개발자의 Mac 에서 만든다.
+#
 # ditto 를 쓰는 이유: zip 에 실행 권한(+x)이 보존되어야 한다. 권한이 사라지면
 # 설치.command 를 더블클릭해도 실행되지 않는다(실제로 확인해야 하는 위험).
 dist:
