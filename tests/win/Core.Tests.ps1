@@ -81,5 +81,17 @@ $script:Tests = @(
         $needed = Test-HcUpdateNeeded
         Remove-Item Env:\HC_LATEST_VERSION -ErrorAction SilentlyContinue
         Assert-Equal $false $needed "건너뛴다"
+    } },
+    @{ Name = "paperclipai 심을 우리 bin 에 만든다"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        $entry = Join-Path $env:HC_HOME "paperclip\node_modules\paperclipai\dist\index.js"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $entry) | Out-Null
+        Set-Content -LiteralPath $entry -Value "// cli"
+        $shim = New-HcPaperclipShim $entry
+        Assert-True (Test-Path -LiteralPath $shim) "심 존재"
+        $c = Get-Content -LiteralPath $shim -Raw
+        Assert-Contains $c "node.exe" "node 를 부른다"
+        Assert-Contains $c "index.js" "엔트리를 부른다"
+        Assert-Contains $c "%*" "인자를 넘긴다"
     } }
 )

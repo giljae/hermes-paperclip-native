@@ -126,12 +126,53 @@ function Install-HcHermes {
     return $true
 }
 
+# paperclipai 의 `install` 은 Windows 를 지원하지 않는다(실측):
+#   1) 내부에서 npm 을 execFile("npm") 로 부르는데 Windows 의 npm 은 npm.cmd 라
+#      shell 없이는 실행되지 않는다 → `spawn npm ENOENT` 로 설치가 깨진다.
+#   2) managed shim 을 `#!/bin/sh` 스크립트로 쓴다(POSIX 전용).
+# 그래서 우리가 payload 를 직접 설치하고 Windows 용 .cmd 심을 만든다.
+# npx 로 CLI 만 돌려도 명령은 동작하지만, 매번 내려받지 않도록 로컬에 설치한다.
+function New-HcPaperclipShim {
+    param([string]$Entry)
+    $bin = Get-HcBinDir
+    New-Item -ItemType Directory -Force -Path $bin | Out-Null
+    $shim = Join-Path $bin "paperclipai.cmd"
+    $node = Join-Path (Get-HcNodeDir) "node.exe"
+    $content = "@echo off`r`n`"$node`" `"$Entry`" %*`r`n"
+    Set-Content -LiteralPath $shim -Value $content -Encoding OEM
+    return $shim
+}
+
 function Install-HcPaperclip {
     param([string]$Version)
     if (-not $Version) { $Version = $env:PAPERCLIP_VERSION }
     if (-not $Version) { $Version = Get-HcPin "PAPERCLIP_VERSION" }
-    if ($env:HC_DRY_RUN) { Write-Host "npx --yes paperclipai@$Version install"; return $true }
-    if (-not (Invoke-HcRun "npx" @("--yes", "paperclipai@$Version", "install"))) { return $false }
-    Add-HcPathEntry (Get-HcBinDir)
-    return $true
+
+    $bin = Get-HcBinDir
+    $shim = Join-Path $bin "paperclipai.cmd"
+    if (Test-Path -LiteralPath $shim) { return $true }
+
+    $prefix = Join-Path (Get-HcAppDir) "paperclip"
+    $entry = Join-Path $prefix "node_modules\paperclipai\dist\index.js"
+
+    if ($env:HC_DRY_RUN) {
+        Write-Host "npm install paperclipai@$Version → $prefix"
+        Write-Host "paperclipai 심 → $shim"
+        return $true
+    }
+
+    New-Item -ItemType Directory -Force -Path $prefix, $bin | Out-Null
+    New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
+    $log = Join-Path (Get-HcLogDir) "paperclip.log"
+
+    # PowerShell 의 `&` 는 .cmd 를 cmd.exe 를 통해 실행하므로 npm 이 정상 동작한다.
+    $npm = Join-Path (Get-HcNodeDir) "npm.cmd"
+    if (-not (Test-Path -LiteralPath $npm)) { $npm = "npm.cmd" }
+    & $npm install --prefix $prefix --no-audit --no-fund "paperclipai@$Version" *>> $log
+    if ($LASTEXITCODE -ne 0) { return $false }
+    if (-not (Test-Path -LiteralPath $entry)) { return $false }
+
+    New-HcPaperclipShim $entry | Out-Null
+    Add-HcPathEntry $bin
+    return (Test-Path -LiteralPath $shim)
 }

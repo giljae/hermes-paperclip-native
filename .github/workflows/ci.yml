@@ -132,5 +132,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: win-smoke-home
-          path: ${{ runner.temp }}/hc-smoke-*/**
+          # AppData(INetCache 등)는 잠긴 파일이 있어 scandir 가 EPERM 으로 실패한다.
+          # 우리가 필요한 로그·설정만 올린다.
+          path: |
+            ${{ runner.temp }}/hc-smoke-*/home/.hermes-paperclip-native/**
+            ${{ runner.temp }}/hc-smoke-*/home/.paperclip/**
           if-no-files-found: ignore
