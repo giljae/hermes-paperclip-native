@@ -2,13 +2,17 @@
 # 6단계: 자동 시작 등록 + 서버가 응답할 때까지 기다리기.
 # 그리고 start/stop/status 명령.
 
-# 서버가 응답할 때까지 기다린다(최대 60초).
+# 서버가 응답할 때까지 기다린다. 첫 부팅은 임베디드 Postgres 초기화와 마이그레이션
+# 때문에 오래 걸린다(실측: 60초로는 부족했다). 기본 5분.
+HC_HEALTH_WAIT_ITERATIONS=150
+
 step_wait_for_health() {
   [ -n "${HC_DRY_RUN:-}" ] && return 0
-  local url i
+  local url i limit
+  limit="${HC_HEALTH_WAIT_ITERATIONS:-150}"
   url="$(p_server_url)"
   i=0
-  while [ "$i" -lt 30 ]; do
+  while [ "$i" -lt "$limit" ]; do
     if curl -fsS --max-time 3 "$url/api/health" >/dev/null 2>&1; then
       return 0
     fi

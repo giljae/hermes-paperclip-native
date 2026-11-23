@@ -41,6 +41,14 @@ if [ -z "${HC_SMOKE_REAL:-}" ]; then
   exit 0
 fi
 
+step "1b) 시드가 실제로 동작했는가"
+if grep -q 'Could not reach the Paperclip API' "$HC_HOME/logs/seed.log" 2>/dev/null; then
+  fail "시드가 Paperclip 서버에 닿지 못했다 (서버가 뜨지 않음)"
+fi
+out="$(HOME="$HOME" HC_SOURCE_DIR="$ROOT" HC_HOME="$HC_HOME" PAPERCLIP_HOME="$PAPERCLIP_HOME" \
+       "$HOME/.local/bin/paperclipai" agent list --company-id "$(HOME="$HOME" PAPERCLIP_HOME="$PAPERCLIP_HOME" "$HOME/.local/bin/paperclipai" company list --json 2>/dev/null | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')" --json 2>&1)"
+printf '%s' "$out" | grep -q 'hermes_local' || fail "hermes_local 에이전트를 찾지 못했다"
+
 step "2) 두 번째 설치가 멱등한가"
 out="$(bash "$ROOT/entry/bootstrap.sh" install 2>&1)" || fail "두 번째 설치가 실패했다"
 printf '%s' "$out" | grep -q '건너뜀' || fail "두 번째 설치가 단계를 건너뛰지 않았다"
