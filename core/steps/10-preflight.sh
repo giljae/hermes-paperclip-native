@@ -6,8 +6,8 @@ HC_MIN_DISK_GB=3
 step_preflight() {
   p_detect
 
-  # 플랫폼이 자체 지원 판정을 제공하면 먼저 실행한다(Linux 는 root/glibc/systemd 를 본다).
-  # macOS 에는 이 함수가 없으므로 가드가 필요하다.
+  # 플랫폼이 자기 지원 조건을 판정한다(macOS 는 최소 OS 버전, Linux 는 root/glibc).
+  # 함수를 제공하지 않는 플랫폼도 있으므로 가드를 둔다.
   if command -v p_require_supported >/dev/null 2>&1; then
     p_require_supported
   fi
