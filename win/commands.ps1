@@ -123,9 +123,13 @@ function Invoke-HcStepOnboard {
         try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch { }
         throw "초기 설정을 만들지 못했습니다. 기록: $log"
     }
-    # onboard 가 포그라운드 서버로 계속 살아 있으면 정리한다(서버는 자동 시작이 소유).
+
+    # onboard --yes 는 서버를 함께 띄운다(콘솔에 "Starting Paperclip server...").
+    # Windows 에서는 그 서버를 그대로 쓴다: 죽였다가 다시 띄우면 반쯤 초기화된
+    # 내장 Postgres 폴더 때문에 다음 initdb 가 실패한다(실측: "data directory might
+    # already exist"). PID 를 우리 pidfile 에 기록해 러너가 관리하게 한다.
     if (-not $proc.HasExited) {
-        try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch { }
+        Set-Content -LiteralPath (Get-HcServerPidFile) -Value "$($proc.Id)" -Encoding ascii
     }
     return $true
 }
@@ -195,30 +199,37 @@ function Invoke-HcStepSeed {
     if (-not (Test-Path -LiteralPath $cli)) { $cli = "paperclipai" }
 
     if ($env:HC_DRY_RUN) {
-        Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $cli company create --payload-json <회사>"
-        Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $cli agent create -C <회사 id> --payload-json <CEO>"
+        $call = Get-HcPaperclipCommand
+        Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $($call.Exe) company create --payload-json <회사>"
+        Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $($call.Exe) agent create -C <회사 id> --payload-json <CEO>"
         return $true
     }
 
     New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
     $seedLog = Join-Path (Get-HcLogDir) "seed.log"
 
+    # .cmd 를 거치면 JSON 인자가 깨진다(실측: --payload-json 이 invalid JSON).
+    # node + payload 엔트리를 직접 쓰고, 인자를 그대로 넘긴다.
+    $call = Get-HcPaperclipCommand
+    $exe = $call.Exe
+    $pre = $call.Pre
+
     # paperclipai 는 서버에 닿지 못하면 stderr 로 쓴다. Stop 이면 그 경고가 종료
-    # 오류가 되므로(Step 7 이 이것으로 실패했다) 호출 동안 Continue 로 낮춘다.
+    # 오류가 되므로 호출 동안 Continue 로 낮춘다.
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $cid = Get-HcFirstId (& $cli company list --json 2>$null | Out-String)
+        $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
         if (-not $cid) {
-            & $cli company create --payload-json (Get-HcSeedCompanyJson) *>> $seedLog
-            $cid = Get-HcFirstId (& $cli company list --json 2>$null | Out-String)
+            & $exe @pre company create --payload-json (Get-HcSeedCompanyJson) *>> $seedLog
+            $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
         }
         if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
 
-        $agents = (& $cli agent list -C $cid --json 2>$null | Out-String)
+        $agents = (& $exe @pre agent list -C $cid --json 2>$null | Out-String)
         if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
 
-        & $cli agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
+        & $exe @pre agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
     } finally {
         $ErrorActionPreference = $prev
     }

@@ -211,6 +211,20 @@ function Get-HcPaperclipEntry {
     return (Join-Path (Get-HcAppDir) "paperclip\node_modules\paperclipai\dist\index.js")
 }
 
+# 포그라운드로 paperclipai 를 실행할 때 쓸 실행 파일·접두 인자.
+# .cmd 를 거치면 JSON 인자(--payload-json)가 깨지므로 node + 엔트리를 직접 쓴다(실측).
+# 반환: @{ Exe = <경로>; Pre = @(<엔트리>) } (폴백은 .cmd, Pre 는 빈 배열)
+function Get-HcPaperclipCommand {
+    $node = Join-Path (Get-HcNodeDir) "node.exe"
+    $entry = Get-HcPaperclipEntry
+    if ((Test-Path -LiteralPath $node) -and (Test-Path -LiteralPath $entry)) {
+        return @{ Exe = $node; Pre = @($entry) }
+    }
+    $cli = Join-Path (Get-HcBinDir) "paperclipai.cmd"
+    if (-not (Test-Path -LiteralPath $cli)) { $cli = "paperclipai" }
+    return @{ Exe = $cli; Pre = @() }
+}
+
 # paperclipai 를 백그라운드로 시작한다. node + payload 엔트리를 직접 쓰므로
 # 경로에 공백·한글이 있어도 .cmd/cmd.exe 인용 문제를 피한다.
 function Start-HcPaperclipProcess {
@@ -256,7 +270,13 @@ function Stop-HcServerBackground {
     $raw = (Get-Content -LiteralPath $f -Raw).Trim()
     $serverPid = 0
     if ([int]::TryParse($raw, [ref]$serverPid)) {
-        try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
+        if ($env:OS -eq "Windows_NT") {
+            # 내장 Postgres 등 자식 프로세스까지 함께 끝낸다(안 그러면 데이터 폴더가
+            # 잠겨 제거가 실패하고 포트도 계속 잡혀 있다).
+            & taskkill /T /F /PID $serverPid 2>$null | Out-Null
+        } else {
+            try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
+        }
     }
     Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
     return $true
