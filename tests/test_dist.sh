@@ -37,4 +37,11 @@ t_generic_has_core() {
   assert_status 0 "$([ -f "$out/core/run.sh" ]; echo $?)" "범용 zip 루트에 core/run.sh 가 있다"
   rm -rf "$out"
 }
-run_tests t_make_dist_runs t_macos_zip_exists t_generic_zip_exists t_checksums_exists t_install_command_is_executable t_generic_has_core
+t_generic_has_win() {
+  local out; out="$(mktemp -d)"
+  ditto -x -k "$DIST/hermes-paperclip-$VER.zip" "$out" 2>/dev/null
+  assert_status 0 "$([ -f "$out/win/commands.ps1" ]; echo $?)" "범용 zip 루트에 win/commands.ps1 가 있다"
+  assert_status 0 "$([ -f "$out/win/bootstrap.ps1" ]; echo $?)" "범용 zip 루트에 win/bootstrap.ps1 가 있다"
+  rm -rf "$out"
+}
+run_tests t_make_dist_runs t_macos_zip_exists t_generic_zip_exists t_checksums_exists t_install_command_is_executable t_generic_has_core t_generic_has_win

@@ -22,7 +22,7 @@ dist:
 	rm -rf "$(DIST)/$(MACOS_NAME)" "$(DIST)/$(GENERIC_NAME)" "$(DIST)/pkg"
 	mkdir -p "$(DIST)/$(MACOS_NAME)" "$(DIST)/pkg"
 	cp -R core platform entry VERSION pins.env "$(DIST)/$(MACOS_NAME)/"
-	cp -R core platform entry VERSION pins.env "$(DIST)/pkg/"
+	cp -R core platform entry win VERSION pins.env "$(DIST)/pkg/"
 	chmod +x "$(DIST)/$(MACOS_NAME)/entry/설치.command" "$(DIST)/$(MACOS_NAME)/entry/bootstrap.sh"
 	chmod +x "$(DIST)/pkg/entry/bootstrap.sh"
 	find "$(DIST)/pkg" -name '*.sh' -exec chmod +x {} \;
@@ -37,8 +37,9 @@ release: dist
 	gh release create "v$(VERSION)" \
 	  "$(DIST)/$(MACOS_NAME).zip" "$(DIST)/$(GENERIC_NAME).zip" \
 	  "$(DIST)/checksums.txt" VERSION \
+	  entry/bootstrap.sh win/bootstrap.ps1 \
 	  --title "Hermes + Paperclip v$(VERSION)" \
-	  --notes "macOS 설치 안내는 내려받은 zip 안의 사용방법.html 을 보세요."
+	  --notes "macOS 설치 안내는 내려받은 zip 안의 사용방법.html 을 보세요. Windows 는 docs/windows.md 를 보세요."
 
 clean:
 	rm -rf "$(DIST)"
