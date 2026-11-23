@@ -82,7 +82,10 @@ hc_dispatch() {
 }
 
 # 직접 실행될 때만 디스패치한다(테스트에서 source 할 때는 아무것도 하지 않는다).
+# lib.sh 를 먼저 로드해야 한다 — hc_load_core 자체가 hc_root 를 쓴다.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  _hc_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  . "$_hc_self_dir/lib.sh"
   hc_load_core
   hc_dispatch "$@"
 fi
