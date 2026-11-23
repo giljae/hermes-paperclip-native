@@ -182,7 +182,7 @@ function Install-HcPaperclip {
     # PowerShell 의 `&` 는 .cmd 를 cmd.exe 를 통해 실행하므로 npm 이 정상 동작한다.
     $npm = Join-Path (Get-HcNodeDir) "npm.cmd"
     if (-not (Test-Path -LiteralPath $npm)) { $npm = "npm.cmd" }
-    if (-not (Invoke-HcRun $npm @("install", "--prefix", $prefix, "--no-audit", "--no-fund", "paperclipai@$Version") $log)) { return $false }
+    if (-not (Invoke-HcRun $npm @("install", "--prefix", $prefix, "--no-audit", "--no-fund", "--dangerously-allow-all-scripts", "paperclipai@$Version") $log)) { return $false }
     if (-not (Test-Path -LiteralPath $entry)) { return $false }
 
     New-HcPaperclipShim $entry | Out-Null

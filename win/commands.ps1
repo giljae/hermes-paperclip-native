@@ -193,6 +193,17 @@ function Get-HcSeedAgentJson {
     return ($obj | ConvertTo-Json -Depth 6 -Compress)
 }
 
+# PowerShell 5.1 은 네이티브 실행 파일에 넘기는 인자 안의 `"` 를 이스케이프하지 않아
+# JSON 이 깨진다(실측: --payload-json → "Expected property name"). `"` 를 `\"` 로
+# 바꿔 C 런타임이 리터럴 따옴표로 해석하게 한다. PS 7.3+ 는 자체 처리하므로 그대로 둔다.
+function ConvertTo-HcJsonArg {
+    param([string]$Json)
+    if ($PSVersionTable.PSVersion.Major -lt 7 -or -not (Get-Variable PSNativeCommandArgumentPassing -ErrorAction SilentlyContinue)) {
+        return $Json.Replace('"', '\"')
+    }
+    return $Json
+}
+
 function Invoke-HcStepSeed {
     $env:PAPERCLIP_HOME = Get-HcDataDir
     $cli = Join-Path (Get-HcBinDir) "paperclipai.cmd"
@@ -221,7 +232,7 @@ function Invoke-HcStepSeed {
     try {
         $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
         if (-not $cid) {
-            & $exe @pre company create --payload-json (Get-HcSeedCompanyJson) *>> $seedLog
+            & $exe @pre company create --payload-json (ConvertTo-HcJsonArg (Get-HcSeedCompanyJson)) *>> $seedLog
             $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
         }
         if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
@@ -229,7 +240,7 @@ function Invoke-HcStepSeed {
         $agents = (& $exe @pre agent list -C $cid --json 2>$null | Out-String)
         if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
 
-        & $exe @pre agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
+        & $exe @pre agent create -C $cid --payload-json (ConvertTo-HcJsonArg (Get-HcSeedAgentJson)) *>> $seedLog
     } finally {
         $ErrorActionPreference = $prev
     }

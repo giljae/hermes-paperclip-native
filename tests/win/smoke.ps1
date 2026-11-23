@@ -37,7 +37,7 @@ function Fail {
     Write-Host "SMOKE FAIL: $Message" -ForegroundColor Red
     # 실패 원인을 CI 로그에서 바로 볼 수 있게 로그 꼬리를 출력한다(아티팩트는
     # 숨김 파일 제외 등으로 누락될 수 있다).
-    foreach ($name in @("install.log", "onboard.log", "seed.log", "server.log", "server.err.log", "paperclip.log")) {
+    foreach ($name in @("install.log", "onboard.log", "onboard.log.err", "seed.log", "server.log", "server.err.log", "paperclip.log")) {
         $p = Join-Path $env:HC_HOME "logs\$name"
         if (Test-Path -LiteralPath $p) {
             Write-Host "--- $name (tail) ---" -ForegroundColor Yellow
