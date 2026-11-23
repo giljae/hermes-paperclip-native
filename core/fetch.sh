@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 다운로드, sha256 검증, 압축 해제.
 #
-# macOS 에는 sha256sum 이 없으므로 shasum -a 256 을 쓴다.
+# macOS 에는 sha256sum 이 없고, 일부 Linux 에는 shasum 이 없다. 둘 다 시도한다.
 
 ft_download() {
   local url="$1" dest="$2"
@@ -12,7 +12,13 @@ ft_download() {
 ft_sha256() {
   local f="$1"
   [ -f "$f" ] || return 1
-  shasum -a 256 "$f" | awk '{print $1}'
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$f" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$f" | awk '{print $1}'
+  else
+    hc_die "sha256 도구(shasum 또는 sha256sum)를 찾을 수 없습니다."
+  fi
 }
 
 ft_verify() {
