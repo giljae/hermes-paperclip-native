@@ -60,12 +60,13 @@ jobs:
         run: bash tests/smoke.sh
 
   smoke-real:
-    name: 실제 설치 스모크 (수동 실행 전용 · 무겁다)
+    name: 실제 설치 스모크 · macOS (수동 전용 · 무겁다)
     if: github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
+      - name: 디스크 여유
+        run: df -h /
       - name: 실제 설치 → 멱등 → 업데이트 → 제거
         env:
           HC_SMOKE_REAL: "1"
@@ -73,3 +74,23 @@ jobs:
           HC_SKIP_OPEN: "1"
           HC_NO_COLOR: "1"
         run: bash tests/smoke.sh
+
+  smoke-real-linux:
+    name: 실제 설치 스모크 · Linux (수동 전용 · 무겁다)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: 디스크 여유 (설치 전)
+        run: df -h /
+      - name: 실제 설치 → 시드 → 멱등 → 업데이트 → 제거
+        env:
+          HC_SMOKE_REAL: "1"
+          HC_SKIP_AUTOSTART: "1"
+          HC_SKIP_OPEN: "1"
+          HC_NO_COLOR: "1"
+        run: bash tests/smoke.sh
+      - name: 디스크 여유 (설치 후)
+        if: always()
+        run: df -h /

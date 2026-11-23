@@ -11,4 +11,5 @@ t_ci_smoke()   { assert_contains "$(cat "$CI" 2>/dev/null)" "tests/smoke.sh" "�
 t_ci_nostart() { assert_contains "$(cat "$CI" 2>/dev/null)" "HC_SKIP_AUTOSTART" "CI 에서 자동 시작을 끈다"; }
 t_ci_ubuntu()      { assert_contains "$(cat "$CI" 2>/dev/null)" "ubuntu-latest" "ubuntu 러너"; }
 t_ci_linux_smoke() { assert_contains "$(cat "$CI" 2>/dev/null)" "test-linux" "리눅스 잡 존재"; }
-run_tests t_ci_exists t_ci_macos t_ci_test t_ci_smoke t_ci_nostart t_ci_ubuntu t_ci_linux_smoke
+t_ci_real_linux() { assert_contains "$(cat "$CI" 2>/dev/null)" "smoke-real-linux" "리눅스 실설치 잡"; }
+run_tests t_ci_real_linux t_ci_exists t_ci_macos t_ci_test t_ci_smoke t_ci_nostart t_ci_ubuntu t_ci_linux_smoke
