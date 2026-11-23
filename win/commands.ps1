@@ -344,9 +344,83 @@ function Invoke-HcUninstall {
     return $true
 }
 
-# Task 7 에서 채운다.
+# --- 업데이트 --------------------------------------------------------------
+# 설치기 자신 + Paperclip + Hermes. 같은 버전이면 건너뛰고, 실패하면 매니페스트
+# 버전을 이전 값으로 되돌린다(셸 update.sh 의 롤백 규칙).
+
+function Get-HcCurrentVersion { return (Get-HcManifest "INSTALLER_VERSION") }
+
+function Get-HcLatestVersion {
+    if ($env:HC_LATEST_VERSION) { return $env:HC_LATEST_VERSION }
+    $base = $env:HC_RELEASE_BASE
+    if (-not $base) { $base = "https://github.com/giljae/hermes-paperclip-native/releases/latest/download" }
+    try { return (Invoke-WebRequest -Uri "$base/VERSION" -UseBasicParsing).Content.Trim() }
+    catch { return "" }
+}
+
+function Test-HcUpdateNeeded {
+    $cur = Get-HcCurrentVersion
+    $lat = Get-HcLatestVersion
+    if (-not $lat) { return $false }
+    return ($lat -ne $cur)
+}
+
+function Install-HcAppVersion {
+    param([string]$Version)
+    $base = $env:HC_RELEASE_BASE
+    if (-not $base) { $base = "https://github.com/giljae/hermes-paperclip-native/releases/latest/download" }
+    $appVer = Join-Path (Get-HcAppDir) "app\$Version"
+    New-Item -ItemType Directory -Force -Path $appVer | Out-Null
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ("hc-upd-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    try {
+        $zip = Join-Path $tmp "app.zip"
+        Invoke-WebRequest -Uri "$base/hermes-paperclip-$Version.zip" -OutFile $zip -UseBasicParsing
+        Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+        $inner = Get-ChildItem -LiteralPath $tmp -Directory |
+            Where-Object { $_.Name -ne "__MACOSX" } | Select-Object -First 1
+        $from = $tmp
+        if ($inner) { $from = $inner.FullName }
+        Copy-Item -Path (Join-Path $from "*") -Destination $appVer -Recurse -Force
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $appVer "win\commands.ps1"))) {
+        throw "새 버전 파일을 찾을 수 없습니다(Windows Defender 격리 가능성): $appVer"
+    }
+    return $appVer
+}
+
 function Invoke-HcUpdate {
-    Write-Host "업데이트는 아직 구현되지 않았습니다."
+    $cur = Get-HcCurrentVersion
+    $lat = Get-HcLatestVersion
+    if (-not $lat) { Write-HcWarn "최신 버전을 확인하지 못했습니다"; return $true }
+    if ($lat -eq $cur) { Write-HcWarn "이미 최신입니다 ($cur)"; return $true }
+
+    Write-Host "업데이트합니다: $cur → $lat"
+    if ($env:HC_DRY_RUN) {
+        Write-Host "app/$lat 에 새 버전을 설치하고 다시 시작합니다"
+        return $true
+    }
+
+    try {
+        Install-HcAppVersion $lat | Out-Null
+    } catch {
+        Set-HcManifest "INSTALLER_VERSION" $cur
+        Write-HcFail "업데이트에 실패해 이전 버전으로 되돌렸습니다 ($cur): $($_.Exception.Message)"
+        return $false
+    }
+
+    $env:PAPERCLIP_HOME = Get-HcDataDir
+    $pc = Join-Path (Get-HcBinDir) "paperclipai.cmd"
+    if (Test-Path -LiteralPath $pc) { try { & $pc update 2>$null | Out-Null } catch { } }
+    $hm = Join-Path (Get-HcBinDir) "hermes.exe"
+    if (Test-Path -LiteralPath $hm) { try { & $hm update 2>$null | Out-Null } catch { } }
+
+    Set-HcManifest "INSTALLER_VERSION" $lat
+    # 새 버전으로 다시 시작한다(자동 시작 실패 시 백그라운드 폴백).
+    if (-not (Install-HcAutostart)) { Start-HcServerBackground | Out-Null }
+    Write-HcOk "업데이트 완료 ($lat)"
     return $true
 }
 

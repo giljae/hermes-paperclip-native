@@ -64,5 +64,22 @@ $script:Tests = @(
         $c = Get-Content -LiteralPath $f -Raw
         Assert-Contains $c "manifest.env" "매니페스트에서 버전을 읽는다"
         Assert-Contains $c "commands.ps1" "명령 스크립트를 부른다"
+    } },
+    @{ Name = "제거는 기존 Hermes 설정을 보존한다"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        $env:USERPROFILE = New-HcTempDir
+        $hermes = Join-Path $env:USERPROFILE ".hermes"
+        New-Item -ItemType Directory -Force -Path $hermes | Out-Null
+        Set-HcManifest "HERMES_EXISTED" "true"
+        Invoke-HcUninstall -Yes | Out-Null
+        Assert-True (Test-Path -LiteralPath $hermes) "기존 Hermes 보존"
+    } },
+    @{ Name = "업데이트는 같은 버전이면 건너뛴다"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        Set-HcManifest "INSTALLER_VERSION" "0.1.2"
+        $env:HC_LATEST_VERSION = "0.1.2"
+        $needed = Test-HcUpdateNeeded
+        Remove-Item Env:\HC_LATEST_VERSION -ErrorAction SilentlyContinue
+        Assert-Equal $false $needed "건너뛴다"
     } }
 )
