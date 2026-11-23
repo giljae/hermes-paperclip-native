@@ -1,0 +1,4 @@
+dist/
+.paperclip/
+*.log
+.DS_Store
