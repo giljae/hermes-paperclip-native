@@ -27,6 +27,7 @@ function Get-HcPin {
 
 function Write-HcStep { param([int]$N, [int]$Total, [string]$Label) Write-Host "[$N/$Total] $Label" }
 function Write-HcOk   { param([string]$Label) Write-Host "      ✓ $Label" }
+function Write-HcSkip { param([string]$Label) Write-Host "      · $Label (건너뜀)" }
 function Write-HcFail { param([string]$Label) Write-Host "      ✗ $Label" -ForegroundColor Red }
 function Write-HcWarn { param([string]$Label) Write-Host "      ! $Label" -ForegroundColor Yellow }
 

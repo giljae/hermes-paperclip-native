@@ -95,7 +95,7 @@ function Invoke-HcStepHermes {
 
 function Invoke-HcStepOnboard {
     $cfg = Join-Path (Get-HcDataDir) "instances\default\config.json"
-    if (Test-Path -LiteralPath $cfg) { Write-HcWarn "초기 설정이 이미 있습니다"; return $true }
+    if (Test-Path -LiteralPath $cfg) { Write-HcSkip "초기 설정이 이미 있습니다"; return $true }
 
     $env:PAPERCLIP_HOME = Get-HcDataDir
     $cli = Join-Path (Get-HcBinDir) "paperclipai.cmd"
@@ -186,7 +186,7 @@ function Invoke-HcStepSeed {
     if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
 
     $agents = (& $cli agent list -C $cid --json 2>$null | Out-String)
-    if ($agents -match "CEO") { Write-HcWarn "이미 CEO 가 있습니다"; return $true }
+    if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
 
     & $cli agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
     return $true
@@ -367,10 +367,20 @@ function Test-HcUpdateNeeded {
 
 function Install-HcAppVersion {
     param([string]$Version)
-    $base = $env:HC_RELEASE_BASE
-    if (-not $base) { $base = "https://github.com/giljae/hermes-paperclip-native/releases/latest/download" }
     $appVer = Join-Path (Get-HcAppDir) "app\$Version"
     New-Item -ItemType Directory -Force -Path $appVer | Out-Null
+
+    # 개발·스모크: 릴리스 대신 현재 소스를 쓴다(셸 update.sh 가 root 를 복사하는 것과 같다).
+    if ($env:HC_SOURCE_DIR -and (Test-Path -LiteralPath (Join-Path $env:HC_SOURCE_DIR "win\commands.ps1"))) {
+        Copy-Item -Path (Join-Path $env:HC_SOURCE_DIR "*") -Destination $appVer -Recurse -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $appVer "win\commands.ps1"))) {
+            throw "새 버전 파일을 찾을 수 없습니다: $appVer"
+        }
+        return $appVer
+    }
+
+    $base = $env:HC_RELEASE_BASE
+    if (-not $base) { $base = "https://github.com/giljae/hermes-paperclip-native/releases/latest/download" }
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("hc-upd-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     try {
@@ -395,7 +405,7 @@ function Invoke-HcUpdate {
     $cur = Get-HcCurrentVersion
     $lat = Get-HcLatestVersion
     if (-not $lat) { Write-HcWarn "최신 버전을 확인하지 못했습니다"; return $true }
-    if ($lat -eq $cur) { Write-HcWarn "이미 최신입니다 ($cur)"; return $true }
+    if ($lat -eq $cur) { Write-HcSkip "이미 최신입니다 ($cur)"; return $true }
 
     Write-Host "업데이트합니다: $cur → $lat"
     if ($env:HC_DRY_RUN) {
