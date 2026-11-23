@@ -77,8 +77,12 @@ hc_require_cmd() {
 }
 
 hc_load_platform() {
-  local f; f="$(hc_root)/platform/$(hc_os).sh"
-  [ -f "$f" ] || hc_die "이 운영체제($(hc_os))는 아직 지원하지 않습니다."
+  local root common os
+  root="$(hc_root)"
+  common="$root/platform/common.sh"
+  os="$root/platform/$(hc_os).sh"
+  [ -f "$common" ] && . "$common"
+  [ -f "$os" ] || hc_die "이 운영체제($(hc_os))는 아직 지원하지 않습니다."
   # shellcheck disable=SC1090
-  . "$f"
+  . "$os"
 }

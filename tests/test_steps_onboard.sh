@@ -6,6 +6,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/../core/ui.sh"
 . "$HERE/../core/manifest.sh"
 . "$HERE/../core/fetch.sh"
+. "$HERE/../platform/common.sh"
 . "$HERE/../platform/macos.sh"
 . "$HERE/../core/steps/50-onboard.sh"
 export HC_NO_COLOR=1

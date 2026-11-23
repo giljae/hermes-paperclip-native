@@ -3,6 +3,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/helpers.sh"
 . "$HERE/../core/lib.sh"
+. "$HERE/../platform/common.sh"
 . "$HERE/../platform/macos.sh"
 export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"
 
