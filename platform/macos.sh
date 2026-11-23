@@ -171,6 +171,10 @@ p_install_hermes() {
   fi
 
   p_activate_tools
+  # uv 의 기본 TLS 스택(webpki 루트)은 시스템 신뢰 저장소를 쓰지 않아, 기업/백신
+  # TLS 검사 환경에서 'invalid peer certificate: UnknownIssuer' 로 실패한다(실측).
+  # 시스템 신뢰 저장소를 쓰게 한다 — 일반 환경에서도 안전하다.
+  export UV_NATIVE_TLS=1
   p_run "$(p_bin_dir)/uv" python install "$py" || hc_die "Python $py 설치에 실패했습니다."
   p_run "$(p_bin_dir)/uv" tool install "hermes-agent==$hermes" || hc_die "Hermes 설치에 실패했습니다."
 

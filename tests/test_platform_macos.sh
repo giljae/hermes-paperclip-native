@@ -85,9 +85,15 @@ t_install_hermes_absolute_uv() {
   local out; out="$(HC_DRY_RUN=1 p_install_hermes)"
   assert_contains "$out" "$(p_bin_dir)/uv python install" "uv 를 절대 경로로 부른다"
 }
+t_hermes_native_tls() {
+  local before="${UV_NATIVE_TLS:-}"
+  HC_DRY_RUN=1 p_install_hermes >/dev/null 2>&1
+  assert_eq "1" "${UV_NATIVE_TLS:-}" "UV_NATIVE_TLS 를 켠다"
+  UV_NATIVE_TLS="$before"
+}
 run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
           t_install_node_skips t_persist_once t_install_node_unsets_other_node \
           t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins \
           t_pc_pins t_pc_env t_pc_skip \
           t_plist_render t_plist_no_placeholder t_status_absent \
-          t_activate_tools t_install_hermes_absolute_uv
+          t_activate_tools t_install_hermes_absolute_uv t_hermes_native_tls
