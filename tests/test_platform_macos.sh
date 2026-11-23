@@ -16,4 +16,27 @@ t_url_from_cfg() {
   printf '{"server":{"port":3210}}' > "$HOME/.paperclip/instances/default/config.json"
   assert_eq "http://127.0.0.1:3210" "$(p_server_url)" "설정에 적힌 실제 포트를 읽는다"
 }
-run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg
+t_install_node_skips() {
+  mkdir -p "$(p_bin_dir)"
+  printf '#!/bin/sh\necho v24.20.0\n' > "$(p_bin_dir)/node"; chmod +x "$(p_bin_dir)/node"
+  NODE_VERSION=24.20.0
+  p_install_node
+  assert_status 0 $? "이미 있으면 건너뛴다"
+}
+t_persist_once() {
+  export HOME="$(mktemp -d)"; : > "$HOME/.zprofile"
+  p_persist_path; p_persist_path
+  assert_eq "1" "$(grep -c 'hermes-paperclip' "$HOME/.zprofile")" "PATH 블록은 한 번만"
+  assert_contains "$(cat "$HOME/.zprofile")" '.local/bin' "PATH 내용"
+}
+t_install_node_unsets_other_node() {
+  mkdir -p "$(p_bin_dir)"
+  printf '#!/bin/sh\necho v24.20.0\n' > "$(p_bin_dir)/node"; chmod +x "$(p_bin_dir)/node"
+  NODE_VERSION=24.20.0
+  p_install_node
+  assert_status 0 $? "설치 함수가 0 을 반환한다"
+  local out; out="$(PATH="$(p_bin_dir):$PATH" command -v node)"
+  assert_eq "$(p_bin_dir)/node" "$out" "우리 node가 우선한다"
+}
+run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
+          t_install_node_skips t_persist_once t_install_node_unsets_other_node
