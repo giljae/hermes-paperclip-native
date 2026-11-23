@@ -4,6 +4,8 @@
 . "$PSScriptRoot\..\..\win\platform.ps1"
 . "$PSScriptRoot\..\..\win\manifest.ps1"
 . "$PSScriptRoot\..\..\win\core.ps1"
+$hcCommands = Join-Path $PSScriptRoot "..\..\win\commands.ps1"
+if (Test-Path -LiteralPath $hcCommands) { . $hcCommands }
 
 function New-HcTempDir {
     $base = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
@@ -51,5 +53,16 @@ $script:Tests = @(
         $r = Invoke-HcRun "node" @("--version")
         Remove-Item Env:\HC_DRY_RUN -ErrorAction SilentlyContinue
         Assert-Contains $r "node" "명령 문자열"
+    } },
+    @{ Name = "제어 파일은 self-locating 이다"; Body = {
+        $env:HC_HOME = New-HcTempDir
+        $env:USERPROFILE = New-HcTempDir
+        Set-HcManifest "INSTALLER_VERSION" "0.1.2"
+        New-HcControlFiles | Out-Null
+        $f = Join-Path $env:USERPROFILE "HermesPaperclip\상태.cmd"
+        Assert-True (Test-Path -LiteralPath $f) "상태.cmd 존재"
+        $c = Get-Content -LiteralPath $f -Raw
+        Assert-Contains $c "manifest.env" "매니페스트에서 버전을 읽는다"
+        Assert-Contains $c "commands.ps1" "명령 스크립트를 부른다"
     } }
 )
