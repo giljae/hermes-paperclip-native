@@ -32,4 +32,17 @@ t_node_dry() {
   HC_DRY_RUN=1 step_node
   assert_eq "24.20.0" "$(mf_get NODE_VERSION)" "Node 버전 기록"
 }
-run_tests t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry
+t_preflight_without_require() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
+  unset -f p_require_supported 2>/dev/null || true
+  HC_SKIP_NETWORK=1 step_preflight
+  assert_status 0 $? "플랫폼 지원 판정이 없어도 사전 점검은 동작한다"
+}
+t_preflight_calls_require() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
+  p_require_supported() { printf 'CALLED'; return 0; }
+  local out; out="$(HC_SKIP_NETWORK=1 step_preflight 2>&1)" || true
+  assert_contains "$out" "CALLED" "지원 판정이 있으면 호출한다"
+}
+run_tests t_records_platform t_records_existing_hermes t_records_no_hermes t_node_dry \
+          t_preflight_without_require t_preflight_calls_require

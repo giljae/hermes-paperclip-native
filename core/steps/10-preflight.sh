@@ -7,6 +7,12 @@ HC_MIN_DISK_GB=3
 step_preflight() {
   p_detect
 
+  # 플랫폼이 자체 지원 판정을 제공하면 먼저 실행한다(Linux 는 root/glibc/systemd 를 본다).
+  # macOS 에는 이 함수가 없으므로 가드가 필요하다.
+  if command -v p_require_supported >/dev/null 2>&1; then
+    p_require_supported
+  fi
+
   if [ "$(p_version_num "$P_OS_VERSION")" -lt "$(p_version_num "$HC_MIN_MACOS")" ]; then
     hc_die "이 Mac은 macOS $HC_MIN_MACOS 이상이어야 합니다 (현재: $P_OS_VERSION)."
   fi

@@ -172,3 +172,25 @@ p_server_stop_bg() {
   rm -f "$pidfile"
   return 0
 }
+
+p_server_url() {
+  local cfg port
+  cfg="$(p_data_dir)/instances/default/config.json"
+  port=""
+  if [ -f "$cfg" ]; then
+    port="$(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$cfg" | head -n 1)"
+  fi
+  [ -n "$port" ] || port=3100
+  printf 'http://127.0.0.1:%s' "$port"
+}
+
+
+p_tail_log() {
+  local n="${1:-5}" d f
+  d="$(p_data_dir)/instances/default/logs"
+  [ -d "$d" ] || return 0
+  f="$(ls -t "$d"/*.log 2>/dev/null | head -n 1)"
+  [ -n "$f" ] || return 0
+  tail -n "$n" "$f"
+}
+

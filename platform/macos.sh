@@ -27,27 +27,9 @@ p_node_archive_url() {
 
 # Paperclip 설정에서 실제 포트를 읽는다. 3100 이 점유되면 Paperclip 이 다른 포트를
 # 고르므로, 여기서 3100 을 가정하면 사용자는 빈 화면을 본다.
-p_server_url() {
-  local cfg port
-  cfg="$(p_data_dir)/instances/default/config.json"
-  port=""
-  if [ -f "$cfg" ]; then
-    port="$(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$cfg" | head -n 1)"
-  fi
-  [ -n "$port" ] || port=3100
-  printf 'http://127.0.0.1:%s' "$port"
-}
 
 p_open_browser() { open "$1"; }
 
-p_tail_log() {
-  local n="${1:-5}" d f
-  d="$(p_data_dir)/instances/default/logs"
-  [ -d "$d" ] || return 0
-  f="$(ls -t "$d"/*.log 2>/dev/null | head -n 1)"
-  [ -n "$f" ] || return 0
-  tail -n "$n" "$f"
-}
 
 
 # 마커는 한 줄이다. 이 줄이 'hermes-paperclip' 문자열을 한 번만 만들기 때문에
