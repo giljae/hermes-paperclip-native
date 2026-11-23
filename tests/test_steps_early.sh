@@ -15,7 +15,7 @@ export HC_NO_COLOR=1
 t_records_platform() {
   export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
   HC_SKIP_NETWORK=1 step_preflight
-  assert_eq "macos-$P_ARCH" "$(mf_get PLATFORM)" "플랫폼 기록"
+  assert_eq "$(hc_os)-$P_ARCH" "$(mf_get PLATFORM)" "플랫폼 기록"
   assert_contains "$(mf_get INSTALLED_AT)" "20" "설치 시각 기록"
 }
 t_records_existing_hermes() {
