@@ -66,12 +66,26 @@ function Invoke-HcStep {
 }
 
 # 외부 명령 실행. HC_DRY_RUN 이 있으면 실행하지 않고 명령 문자열만 돌려준다.
+# 네이티브 도구(npm/uv 등)는 경고를 stderr 로 쓴다. PowerShell 5.1 에서
+# $ErrorActionPreference=Stop 이면 그 경고가 종료 오류가 되어 설치가 중단된다
+# (실측: npm deprecation 경고로 Paperclip 설치가 멈춤). 호출 동안 Continue 로 낮춘다.
 function Invoke-HcRun {
-    param([string]$Command, [string[]]$Arguments = @())
+    param([string]$Command, [string[]]$Arguments = @(), [string]$Log = "")
     $line = $Command
     if ($Arguments.Count -gt 0) { $line = "$Command " + ($Arguments -join " ") }
     if ($env:HC_DRY_RUN) { Write-Host $line; return $line }
-    & $Command @Arguments
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($Log) {
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Log) | Out-Null
+            & $Command @Arguments *>> $Log
+        } else {
+            & $Command @Arguments
+        }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
     if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { return $false }
     return $true
 }
@@ -92,7 +106,7 @@ function Install-HcUv {
     try {
         $script = Join-Path $tmp "uv-install.ps1"
         Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile $script -UseBasicParsing
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $script
+        Invoke-HcRun "powershell" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $script) | Out-Null
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -168,8 +182,7 @@ function Install-HcPaperclip {
     # PowerShell 의 `&` 는 .cmd 를 cmd.exe 를 통해 실행하므로 npm 이 정상 동작한다.
     $npm = Join-Path (Get-HcNodeDir) "npm.cmd"
     if (-not (Test-Path -LiteralPath $npm)) { $npm = "npm.cmd" }
-    & $npm install --prefix $prefix --no-audit --no-fund "paperclipai@$Version" *>> $log
-    if ($LASTEXITCODE -ne 0) { return $false }
+    if (-not (Invoke-HcRun $npm @("install", "--prefix", $prefix, "--no-audit", "--no-fund", "paperclipai@$Version") $log)) { return $false }
     if (-not (Test-Path -LiteralPath $entry)) { return $false }
 
     New-HcPaperclipShim $entry | Out-Null
