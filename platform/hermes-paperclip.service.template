@@ -1,0 +1,18 @@
+[Unit]
+Description=Hermes + Paperclip
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@@PAPERCLIP@@ run
+Environment=HOME=@@HOME@@
+Environment=PATH=@@PATH@@
+Environment=PAPERCLIP_HOME=@@DATA_DIR@@
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:@@LOG@@
+StandardError=append:@@LOG_ERR@@
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

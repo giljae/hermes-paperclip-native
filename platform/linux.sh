@@ -79,3 +79,76 @@ p_persist_path() {
   done
   return 0
 }
+
+# --- 자동 시작 (systemd user) -------------------------------------------
+#
+# PATH 를 유닛에 명시한다. systemd user 유닛의 기본 PATH 는 최소한이라,
+# 명시하지 않으면 어댑터가 `hermes` 를 찾지 못한다(macOS launchd 와 같은 이유).
+# systemd 를 쓸 수 없는 환경(컨테이너/WSL)에서는 1 을 반환하고 코어가
+# 백그라운드 러너로 폴백한다.
+
+p_autostart_label() { printf 'hermes-paperclip'; }
+
+p_autostart_unit() {
+  printf '%s/.config/systemd/user/%s.service' "$HOME" "$(p_autostart_label)"
+}
+
+p_autostart_available() {
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl --user show-environment >/dev/null 2>&1 || return 1
+  return 0
+}
+
+p_autostart_render() {
+  local tpl path
+  tpl="$(hc_root)/platform/hermes-paperclip.service.template"
+  [ -f "$tpl" ] || hc_die "자동 시작 템플릿을 찾을 수 없습니다: $tpl"
+  path="$(p_bin_dir):$(p_node_dir)/bin:/usr/local/bin:/usr/bin:/bin"
+  sed -e "s|@@PAPERCLIP@@|$(p_bin_dir)/paperclipai|g" \
+      -e "s|@@PATH@@|$path|g" \
+      -e "s|@@HOME@@|$HOME|g" \
+      -e "s|@@DATA_DIR@@|$(p_data_dir)|g" \
+      -e "s|@@LOG@@|$(hc_home)/logs/server.log|g" \
+      -e "s|@@LOG_ERR@@|$(hc_home)/logs/server.err.log|g" \
+      "$tpl"
+}
+
+p_autostart_install() {
+  [ -n "${HC_SKIP_AUTOSTART:-}" ] && return 0
+  p_autostart_available || return 1
+
+  local unit; unit="$(p_autostart_unit)"
+  mkdir -p "$(dirname "$unit")" || return 1
+  p_autostart_render > "$unit" || return 1
+
+  p_run systemctl --user daemon-reload >/dev/null 2>&1 || true
+  p_run systemctl --user enable --now "$(p_autostart_label).service" >/dev/null 2>&1 || return 1
+  # 로그아웃해도 계속 돌게 한다. 실패해도 설치는 계속한다(경고만).
+  p_run loginctl enable-linger "$USER" >/dev/null 2>&1 || true
+  return 0
+}
+
+p_autostart_remove() {
+  local unit; unit="$(p_autostart_unit)"
+  if p_autostart_available; then
+    p_run systemctl --user disable --now "$(p_autostart_label).service" >/dev/null 2>&1 || true
+  fi
+  rm -f "$unit"
+  if p_autostart_available; then
+    p_run systemctl --user daemon-reload >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
+p_autostart_status() {
+  local unit; unit="$(p_autostart_unit)"
+  if [ ! -f "$unit" ]; then
+    printf 'absent'
+    return 0
+  fi
+  if p_autostart_available && systemctl --user is-active --quiet "$(p_autostart_label).service" 2>/dev/null; then
+    printf 'running'
+  else
+    printf 'stopped'
+  fi
+}
