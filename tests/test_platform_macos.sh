@@ -3,6 +3,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/helpers.sh"
 . "$HERE/../core/lib.sh"
+# HC_OS_GUARD: macOS 전용 테스트
+[ "$(hc_os)" = "macos" ] || exit 0
 . "$HERE/../platform/common.sh"
 . "$HERE/../platform/macos.sh"
 export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"

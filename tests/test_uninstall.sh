@@ -5,8 +5,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/../core/lib.sh"
 . "$HERE/../core/ui.sh"
 . "$HERE/../core/manifest.sh"
-. "$HERE/../platform/common.sh"
-. "$HERE/../platform/macos.sh"
+# 현재 플랫폼을 로드한다(OS 하드코딩 금지).
+. "$HERE/../core/lib.sh"
+hc_load_platform
 . "$HERE/../core/steps/75-shortcuts.sh"
 . "$HERE/../core/steps/uninstall.sh"
 export HC_NO_COLOR=1

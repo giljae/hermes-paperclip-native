@@ -6,8 +6,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/../core/ui.sh"
 . "$HERE/../core/manifest.sh"
 . "$HERE/../core/fetch.sh"
-. "$HERE/../platform/common.sh"
-. "$HERE/../platform/macos.sh"
+# 현재 플랫폼을 로드한다(OS 하드코딩 금지).
+. "$HERE/../core/lib.sh"
+hc_load_platform
 . "$HERE/../core/steps/update.sh"
 export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)" HC_NO_COLOR=1
 p_detect

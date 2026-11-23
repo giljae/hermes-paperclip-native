@@ -37,6 +37,28 @@ jobs:
             .superpowers/sdd/**/*.txt
           if-no-files-found: ignore
 
+  test-linux:
+    name: Linux 단위 테스트 + DRY_RUN 스모크
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 셸 문법 검사
+        run: |
+          for f in $(git ls-files '*.sh'); do
+            bash -n "$f" || exit 1
+          done
+
+      - name: 단위 테스트
+        run: make test
+
+      - name: DRY_RUN 스모크
+        env:
+          HC_SKIP_AUTOSTART: "1"
+          HC_SKIP_OPEN: "1"
+          HC_NO_COLOR: "1"
+        run: bash tests/smoke.sh
+
   smoke-real:
     name: 실제 설치 스모크 (수동 실행 전용 · 무겁다)
     if: github.event_name == 'workflow_dispatch'
