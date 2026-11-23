@@ -74,8 +74,20 @@ t_status_absent() {
   export HOME="$(mktemp -d)"
   assert_eq "absent" "$(p_autostart_status)" "plist 가 없으면 absent"
 }
+t_activate_tools() {
+  local before="$PATH"
+  p_activate_tools
+  assert_contains "$PATH" "$(p_bin_dir)" "bin 이 PATH 에 들어간다"
+  assert_contains "$PATH" "$(p_node_dir)/bin" "node bin 이 PATH 에 들어간다"
+  export PATH="$before"
+}
+t_install_hermes_absolute_uv() {
+  local out; out="$(HC_DRY_RUN=1 p_install_hermes)"
+  assert_contains "$out" "$(p_bin_dir)/uv python install" "uv 를 절대 경로로 부른다"
+}
 run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
           t_install_node_skips t_persist_once t_install_node_unsets_other_node \
           t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins \
           t_pc_pins t_pc_env t_pc_skip \
-          t_plist_render t_plist_no_placeholder t_status_absent
+          t_plist_render t_plist_no_placeholder t_status_absent \
+          t_activate_tools t_install_hermes_absolute_uv

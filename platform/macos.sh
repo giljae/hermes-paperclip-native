@@ -90,6 +90,7 @@ p_install_node() {
     [ -e "$inner/bin/$f" ] && ln -sf "$inner/bin/$f" "$bin/$f"
   done
   rm -rf "$tmp"
+  p_activate_tools
   p_node_present
 }
 
@@ -108,6 +109,24 @@ p_persist_path() {
 }
 
 # --- 실행 헬퍼 -----------------------------------------------------------
+
+# 우리가 방금 설치한 도구들을 현재 프로세스의 PATH 앞에 붙인다.
+# p_persist_path 는 "새 셸"에만 영향을 주므로, 설치 중에 npx/uv/paperclipai 를
+# 쓰려면 이 함수가 필요하다. (실제 스모크에서 uv: command not found 로 드러났다.)
+p_activate_tools() {
+  local bin node
+  bin="$(p_bin_dir)"
+  node="$(p_node_dir)/bin"
+  case ":$PATH:" in
+    *":$node:"*) ;;
+    *) PATH="$node:$PATH" ;;
+  esac
+  case ":$PATH:" in
+    *":$bin:"*) ;;
+    *) PATH="$bin:$PATH" ;;
+  esac
+  export PATH
+}
 
 # HC_DRY_RUN=1 이면 실행하지 않고 명령만 출력한다(테스트/미리보기용).
 p_run() {
@@ -135,6 +154,7 @@ p_install_uv() {
   UV_INSTALL_DIR="$(p_bin_dir)" sh "$tmp/uv-install.sh" >/dev/null 2>&1 \
     || hc_die "uv 설치에 실패했습니다."
   rm -rf "$tmp"
+  p_activate_tools
   p_uv_present
 }
 
@@ -150,8 +170,9 @@ p_install_hermes() {
     return 0
   fi
 
-  p_run uv python install "$py" || hc_die "Python $py 설치에 실패했습니다."
-  p_run uv tool install "hermes-agent==$hermes" || hc_die "Hermes 설치에 실패했습니다."
+  p_activate_tools
+  p_run "$(p_bin_dir)/uv" python install "$py" || hc_die "Python $py 설치에 실패했습니다."
+  p_run "$(p_bin_dir)/uv" tool install "hermes-agent==$hermes" || hc_die "Hermes 설치에 실패했습니다."
 
   [ -n "${HC_DRY_RUN:-}" ] || p_hermes_present
 }
@@ -168,6 +189,7 @@ p_install_paperclip() {
   if [ -z "${HC_DRY_RUN:-}" ] && p_paperclip_present; then
     return 0
   fi
+  p_activate_tools
   p_run npx --yes "paperclipai@$v" install || hc_die "Paperclip 설치에 실패했습니다."
   [ -n "${HC_DRY_RUN:-}" ] || p_paperclip_present
 }
