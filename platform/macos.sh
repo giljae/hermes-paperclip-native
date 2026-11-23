@@ -150,3 +150,19 @@ p_install_hermes() {
 
   [ -n "${HC_DRY_RUN:-}" ] || p_hermes_present
 }
+
+# --- Paperclip ----------------------------------------------------------
+
+p_paperclip_present() { [ -x "$(p_bin_dir)/paperclipai" ]; }
+
+# 모든 paperclipai 호출 전에 이걸 부른다. CLI 가 다른 인스턴스를 보는 사고를 막는다.
+p_paperclip_env() { export PAPERCLIP_HOME="$(p_data_dir)"; }
+
+p_install_paperclip() {
+  local v; v="${PAPERCLIP_VERSION:-$(hc_pin PAPERCLIP_VERSION)}"
+  if [ -z "${HC_DRY_RUN:-}" ] && p_paperclip_present; then
+    return 0
+  fi
+  p_run npx --yes "paperclipai@$v" install || hc_die "Paperclip 설치에 실패했습니다."
+  [ -n "${HC_DRY_RUN:-}" ] || p_paperclip_present
+}
