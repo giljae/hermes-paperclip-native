@@ -14,6 +14,13 @@ function New-HcTempDir {
     return $d
 }
 
+# 사용자 PATH 영속화는 Windows 전용 부작용이라 macOS 에서는 실제 저장소를 쓸 수 없다.
+# Add-HcToUserPath 가 이 두 함수를 통해서만 환경을 읽고 쓰므로, 테스트는 메모리
+# 저장소로 갈아끼워 중복 방지·보존 규칙을 실제로 검증한다(의존성 주입).
+$script:HcTestUserPath = $null
+function Get-HcUserPath { return $script:HcTestUserPath }
+function Set-HcUserPath { param([string]$Value) $script:HcTestUserPath = $Value }
+
 $script:Tests = @(
     @{ Name = "경로는 LOCALAPPDATA 아래다"; Body = {
         Remove-Item Env:\HC_HOME -ErrorAction SilentlyContinue
@@ -59,5 +66,24 @@ $script:Tests = @(
         New-Item -ItemType Directory -Force -Path $logdir | Out-Null
         Set-Content -LiteralPath (Join-Path $logdir "server.log") -Value @("l1", "l2", "l3", "l4")
         Assert-Equal "l3`nl4" (Get-HcTailLog 2) "마지막 2줄"
+    } },
+    @{ Name = "PATH 뒤에 덧붙이고 기존 값을 보존한다"; Body = {
+        Remove-Item Env:\HC_HOME -ErrorAction SilentlyContinue
+        $script:HcTestUserPath = "C:\Windows;C:\Tools"
+        $before = $script:HcTestUserPath
+        Add-HcToUserPath
+        $after = Get-HcUserPath
+        $bin = Get-HcBinDir
+        Assert-True ($after -like "*$bin*") "bin 이 추가됨"
+        Assert-True ($after.Contains("C:\Tools")) "기존 PATH 가 보존됨"
+        Assert-True ($after.Split(';').Count -le ($before.Split(';').Count + 1)) "중복 추가 없음"
+    } },
+    @{ Name = "두 번 실행해도 한 번만 추가한다"; Body = {
+        Remove-Item Env:\HC_HOME -ErrorAction SilentlyContinue
+        $script:HcTestUserPath = ""
+        Add-HcToUserPath; Add-HcToUserPath
+        $bin = Get-HcBinDir
+        $n = ($script:HcTestUserPath.Split(';') | Where-Object { $_.Trim() -ieq $bin }).Count
+        Assert-Equal 1 $n "중복 없음"
     } }
 )

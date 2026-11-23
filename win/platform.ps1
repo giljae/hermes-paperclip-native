@@ -94,3 +94,105 @@ function Test-HcRequireSupported {
     }
     return $true
 }
+
+# --- 사용자 PATH -----------------------------------------------------------
+#
+# 사용자 PATH 만 건드린다(시스템 PATH 는 절대 건드리지 않는다). 기존 값을 읽어
+# `;` 로 나눈 뒤, 우리 경로가 정확히 일치하는 항목으로 없을 때만 뒤에 덧붙인다.
+# 기존 PATH 를 잃으면 사용자의 다른 프로그램이 전부 깨진다 — 복구가 어렵다.
+
+# 환경 저장소 접근을 이 두 함수로만 한다. 테스트는 이 둘을 메모리 저장소로
+# 갈아끼워 중복 방지·보존 규칙을 실제로 검증한다(Windows 전용 부작용을 피한다).
+function Get-HcUserPath {
+    if ($env:OS -ne "Windows_NT") { return "" }
+    return [Environment]::GetEnvironmentVariable("Path", "User")
+}
+
+function Set-HcUserPath {
+    param([string]$Value)
+    if ($env:OS -ne "Windows_NT") { return }
+    [Environment]::SetEnvironmentVariable("Path", $Value, "User")
+}
+
+function Add-HcPathEntry {
+    param([string]$Dir)
+    if (-not $Dir) { return }
+    $target = $Dir.TrimEnd('\')
+
+    $cur = Get-HcUserPath
+    if ($null -eq $cur) { $cur = "" }
+    $present = $false
+    if ($cur -ne "") {
+        foreach ($p in $cur.Split(';')) {
+            if ($p.Trim().TrimEnd('\') -ieq $target) { $present = $true; break }
+        }
+    }
+    if (-not $present) {
+        if ($cur -ne "") { Set-HcUserPath "$cur;$Dir" } else { Set-HcUserPath "$Dir" }
+    }
+
+    # 현재 프로세스에도 즉시 반영한다(설치 중 npx/uv 를 쓰려면 필요하다).
+    $proc = $env:Path
+    $procPresent = $false
+    if ($proc) {
+        foreach ($p in $proc.Split(';')) {
+            if ($p.Trim().TrimEnd('\') -ieq $target) { $procPresent = $true; break }
+        }
+    }
+    if (-not $procPresent) {
+        if ($proc) { $env:Path = "$Dir;$proc" } else { $env:Path = "$Dir" }
+    }
+}
+
+function Add-HcToUserPath {
+    Add-HcPathEntry (Get-HcBinDir)
+}
+
+# --- Node 설치 -------------------------------------------------------------
+
+function Test-HcNodePresent {
+    $node = Join-Path (Get-HcNodeDir) "node.exe"
+    if (-not (Test-Path -LiteralPath $node)) { return $false }
+    $want = $env:NODE_VERSION
+    if (-not $want) { return $true }
+    try { $got = (& $node -v 2>$null) } catch { return $false }
+    return ("$got" -eq "v$want")
+}
+
+# win-x64/arm64 zip 을 받아 Get-HcNodeDir 에 풀고(bin 디렉터리와 노드 디렉터리를
+# 모두 PATH 에 넣는다). node.exe/npm.cmd/npx.cmd 는 같은 디렉터리에 있어야 npm 이
+# 동작하므로 노드 디렉터리 자체를 PATH 에 넣는다.
+function Install-HcNode {
+    param([string]$Version)
+    if (-not $Version) { $Version = $env:NODE_VERSION }
+    if (Test-HcNodePresent) { return $true }
+    if (-not $Version) { throw "Node.js 버전을 알 수 없습니다(NODE_VERSION)." }
+
+    $url = Get-HcNodeArchiveUrl $Version
+    $nodeDir = Get-HcNodeDir
+    $binDir = Get-HcBinDir
+
+    if ($env:HC_DRY_RUN) {
+        Write-Host "$url → $nodeDir"
+        return $true
+    }
+
+    New-Item -ItemType Directory -Force -Path $nodeDir, $binDir | Out-Null
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ("hc-node-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    try {
+        $zip = Join-Path $tmp "node.zip"
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+        $inner = Get-ChildItem -LiteralPath $tmp -Directory |
+            Where-Object { $_.Name -like "node-v*" } | Select-Object -First 1
+        if (-not $inner) { throw "Node.js 압축 구조를 이해할 수 없습니다." }
+        Copy-Item -Path (Join-Path $inner.FullName "*") -Destination $nodeDir -Recurse -Force
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Add-HcToUserPath
+    Add-HcPathEntry $nodeDir
+    return (Test-HcNodePresent)
+}
