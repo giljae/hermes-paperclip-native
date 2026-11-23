@@ -15,7 +15,9 @@ shortcut_render() {
 printf '\033]0;%s\007' "Hermes + Paperclip — @@TITLE@@"
 HC_HOME="${HC_HOME:-$HOME/.hermes-paperclip-native}"
 VER="$(sed -n 's/^INSTALLER_VERSION=//p' "$HC_HOME/manifest.env")"
-exec "$HC_HOME/app/$VER/core/run.sh" @@CMD@@
+"$HC_HOME/app/$VER/core/run.sh" @@CMD@@
+printf '\n'
+read -r -p '계속하려면 Enter 키를 누르세요...' _
 SCRIPT
 }
 
