@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # 1단계: 이 컴퓨터가 설치 가능한지 확인하고, 나중에 필요한 사실을 기록한다.
 
-HC_MIN_MACOS="13.0"
 HC_MIN_DISK_GB=3
 
 step_preflight() {
@@ -11,10 +10,6 @@ step_preflight() {
   # macOS 에는 이 함수가 없으므로 가드가 필요하다.
   if command -v p_require_supported >/dev/null 2>&1; then
     p_require_supported
-  fi
-
-  if [ "$(p_version_num "$P_OS_VERSION")" -lt "$(p_version_num "$HC_MIN_MACOS")" ]; then
-    hc_die "이 Mac은 macOS $HC_MIN_MACOS 이상이어야 합니다 (현재: $P_OS_VERSION)."
   fi
 
   local avail

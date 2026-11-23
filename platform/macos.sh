@@ -112,3 +112,15 @@ p_autostart_status() {
     printf 'stopped'
   fi
 }
+
+# 이 배포판에서 설치가 가능한지 판정한다. 최소 버전 검사가 여기 있는 이유:
+# 코어는 OS 중립이어야 하고, Linux 의 P_OS_VERSION 은 커널 버전이라 macOS 버전
+# 비교에 쓰면 안 된다(ubuntu CI 에서 실제로 이 버그가 드러났다).
+HC_MIN_MACOS="13.0"
+
+p_require_supported() {
+  if [ "$(p_version_num "$P_OS_VERSION")" -lt "$(p_version_num "$HC_MIN_MACOS")" ]; then
+    hc_die "이 Mac은 macOS $HC_MIN_MACOS 이상이어야 합니다 (현재: $P_OS_VERSION)."
+  fi
+  return 0
+}
