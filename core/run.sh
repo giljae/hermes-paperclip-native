@@ -75,7 +75,7 @@ hc_dispatch() {
     stop)      cmd_stop ;;
     status)    cmd_status ;;
     connect)   cmd_connect ;;
-    uninstall) step_uninstall ;;
+    uninstall) step_uninstall "${2:-}" ;;
     verify)    cmd_verify ;;
     *)         hc_usage >&2; return 2 ;;
   esac
