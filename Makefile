@@ -8,6 +8,11 @@ GENERIC_NAME := hermes-paperclip-$(VERSION)
 
 test:
 	bash tests/run.sh
+	@if command -v pwsh >/dev/null 2>&1; then \
+		pwsh -NoProfile -File tests/win/run.ps1; \
+	else \
+		echo 'pwsh 가 없어 PowerShell 테스트를 건너뜁니다'; \
+	fi
 
 # 배포물을 만든다.
 #   dist/HermesPaperclip-macOS-<ver>.zip  — 더블클릭용(macOS)
