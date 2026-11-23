@@ -206,6 +206,27 @@ function Install-HcNode {
 
 function Get-HcServerPidFile { return (Join-Path (Get-HcAppDir) "server.pid") }
 
+# 우리가 설치한 paperclipai payload 의 엔트리(Install-HcPaperclip 참고).
+function Get-HcPaperclipEntry {
+    return (Join-Path (Get-HcAppDir) "paperclip\node_modules\paperclipai\dist\index.js")
+}
+
+# paperclipai 를 백그라운드로 시작한다. node + payload 엔트리를 직접 쓰므로
+# 경로에 공백·한글이 있어도 .cmd/cmd.exe 인용 문제를 피한다.
+function Start-HcPaperclipProcess {
+    param([string]$Arguments, [string]$OutLog, [string]$ErrLog)
+    $node = Join-Path (Get-HcNodeDir) "node.exe"
+    $entry = Get-HcPaperclipEntry
+    if ((Test-Path -LiteralPath $node) -and (Test-Path -LiteralPath $entry)) {
+        return (Start-Process -FilePath $node -ArgumentList "`"$entry`" $Arguments" `
+            -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -PassThru)
+    }
+    $exe = Join-Path (Get-HcBinDir) "paperclipai.cmd"
+    if (-not (Test-Path -LiteralPath $exe)) { $exe = "paperclipai" }
+    return (Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$exe`" $Arguments" `
+        -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -PassThru)
+}
+
 function Test-HcServerRunning {
     $f = Get-HcServerPidFile
     if (-not (Test-Path -LiteralPath $f)) { return $false }
@@ -222,12 +243,9 @@ function Start-HcServerBackground {
     New-Item -ItemType Directory -Force -Path (Get-HcAppDir), (Get-HcLogDir) | Out-Null
     $env:PAPERCLIP_HOME = Get-HcDataDir
     Add-HcPathEntry (Get-HcBinDir)
-    $exe = Join-Path (Get-HcBinDir) "paperclipai.cmd"
-    if (-not (Test-Path -LiteralPath $exe)) { $exe = "paperclipai" }
     $log = Join-Path (Get-HcLogDir) "server.log"
     $err = Join-Path (Get-HcLogDir) "server.err.log"
-    $proc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$exe`" run" `
-        -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError $err -PassThru
+    $proc = Start-HcPaperclipProcess -Arguments "run" -OutLog $log -ErrLog $err
     Set-Content -LiteralPath (Get-HcServerPidFile) -Value "$($proc.Id)" -Encoding ascii
     return $true
 }

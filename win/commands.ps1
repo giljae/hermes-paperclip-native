@@ -109,10 +109,8 @@ function Invoke-HcStepOnboard {
     New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
     $log = Join-Path (Get-HcLogDir) "onboard.log"
     $env:PAPERCLIP_NO_BROWSER = "1"
-    $proc = Start-Process -FilePath "cmd.exe" `
-        -ArgumentList "/c", "`"$cli`" onboard --yes --no-install-service" `
-        -WindowStyle Hidden -RedirectStandardOutput $log `
-        -RedirectStandardError ($log + ".err") -PassThru
+    $proc = Start-HcPaperclipProcess -Arguments "onboard --yes --no-install-service" `
+        -OutLog $log -ErrLog ($log + ".err")
 
     $i = 0
     while ($i -lt 300) {
@@ -132,13 +130,40 @@ function Invoke-HcStepOnboard {
     return $true
 }
 
+# 서버가 응답할 때까지 기다린다. 첫 부팅은 임베디드 Postgres 초기화와 마이그레이션
+# 때문에 오래 걸린다(셸 구현과 같은 이유·기본값).
+function Wait-HcServerHealth {
+    if ($env:HC_DRY_RUN) { return $true }
+    $limit = 150
+    if ($env:HC_HEALTH_WAIT_ITERATIONS) { $limit = [int]$env:HC_HEALTH_WAIT_ITERATIONS }
+    $url = "$(Get-HcServerUrl)/api/health"
+    $i = 0
+    while ($i -lt $limit) {
+        try {
+            $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+            if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 300) { return $true }
+        } catch { }
+        Start-Sleep -Seconds 2
+        $i++
+    }
+    Write-HcWarn "서버가 아직 응답하지 않습니다. 잠시 뒤 브라우저를 새로 고쳐 보세요."
+    return $true
+}
+
 function Invoke-HcStepAutostart {
     $env:PAPERCLIP_HOME = Get-HcDataDir
     Add-HcPathEntry (Get-HcBinDir)
-    if (Install-HcAutostart) { return $true }
-    # Task Scheduler 등록이 안 되면 백그라운드 러너로 폴백한다(오류가 아니다).
-    Write-HcWarn "자동 시작 등록에 실패해 백그라운드로 실행합니다."
-    return (Start-HcServerBackground)
+
+    if ($env:HC_SKIP_AUTOSTART) {
+        Write-HcSkip "자동 시작"
+    } elseif (-not (Install-HcAutostart)) {
+        Write-HcWarn "자동 시작을 등록하지 못했습니다. 대신 백그라운드로 실행합니다."
+    }
+
+    # ONLOGON 작업은 로그온 때만 실행된다. 다음 단계(시드)가 API를 쓰므로
+    # 지금 서버를 띄우고 응답할 때까지 기다린다.
+    if (-not $env:HC_DRY_RUN) { Start-HcServerBackground | Out-Null }
+    return (Wait-HcServerHealth)
 }
 
 function Get-HcFirstId {
@@ -178,17 +203,25 @@ function Invoke-HcStepSeed {
     New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
     $seedLog = Join-Path (Get-HcLogDir) "seed.log"
 
-    $cid = Get-HcFirstId (& $cli company list --json 2>$null | Out-String)
-    if (-not $cid) {
-        & $cli company create --payload-json (Get-HcSeedCompanyJson) *>> $seedLog
+    # paperclipai 는 서버에 닿지 못하면 stderr 로 쓴다. Stop 이면 그 경고가 종료
+    # 오류가 되므로(Step 7 이 이것으로 실패했다) 호출 동안 Continue 로 낮춘다.
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
         $cid = Get-HcFirstId (& $cli company list --json 2>$null | Out-String)
+        if (-not $cid) {
+            & $cli company create --payload-json (Get-HcSeedCompanyJson) *>> $seedLog
+            $cid = Get-HcFirstId (& $cli company list --json 2>$null | Out-String)
+        }
+        if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
+
+        $agents = (& $cli agent list -C $cid --json 2>$null | Out-String)
+        if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
+
+        & $cli agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
+    } finally {
+        $ErrorActionPreference = $prev
     }
-    if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
-
-    $agents = (& $cli agent list -C $cid --json 2>$null | Out-String)
-    if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
-
-    & $cli agent create -C $cid --payload-json (Get-HcSeedAgentJson) *>> $seedLog
     return $true
 }
 
