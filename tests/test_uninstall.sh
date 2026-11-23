@@ -35,4 +35,15 @@ t_removes_ours() {
   assert_status 1 "$([ -d "$HOME/.paperclip" ]; echo $?)" "우리 데이터는 지운다"
   assert_status 1 "$([ -d "$HC_HOME" ]; echo $?)" "설치 상태도 지운다"
 }
-run_tests t_plan_lists t_preserves_hermes t_removes_ours
+t_removes_readonly_tree() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"
+  p_detect
+  mkdir -p "$HOME/.paperclip/ro" "$HC_HOME"
+  printf 'x' > "$HOME/.paperclip/ro/f"
+  chmod 500 "$HOME/.paperclip/ro"
+  mf_set HERMES_EXISTED false
+  HC_SKIP_AUTOSTART=1 step_uninstall --yes >/dev/null 2>&1
+  chmod -R u+w "$HOME/.paperclip" 2>/dev/null
+  assert_status 1 "$([ -d "$HOME/.paperclip" ]; echo $?)" "읽기 전용 하위 폴더도 지운다"
+}
+run_tests t_plan_lists t_preserves_hermes t_removes_ours t_removes_readonly_tree

@@ -56,6 +56,16 @@ hc_log() {
   printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$(hc_log_file)"
 }
 
+# npm 등이 만든 읽기 전용 디렉터리는 rm -rf 만으로 지워지지 않는다(실측:
+# 실제 스모크에서 ~/.paperclip 이 남았다). 먼저 권한을 풀고 지운다.
+hc_rm_rf() {
+  local target="$1"
+  [ -n "$target" ] || return 0
+  [ -e "$target" ] || return 0
+  chmod -R u+w "$target" 2>/dev/null || true
+  rm -rf "$target"
+}
+
 hc_die() {
   printf '✗ %s\n' "$*" >&2
   hc_log "실패: $*"

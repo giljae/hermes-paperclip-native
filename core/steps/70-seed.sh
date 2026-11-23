@@ -69,7 +69,7 @@ step_seed() {
 
   cid="$(seed_company_id)"
   if [ -z "$cid" ]; then
-    "$cli" company create --payload-json "$(seed_company_payload)" >/dev/null 2>&1 || {
+    "$cli" company create --payload-json "$(seed_company_payload)" >>"$(hc_log_dir)/seed.log" 2>&1 || {
       ui_warn "회사를 만들지 못했습니다. 다음에 다시 시도할 수 있습니다."
       return 0
     }
@@ -86,7 +86,7 @@ step_seed() {
     return 0
   fi
 
-  "$cli" agent create -C "$cid" --payload-json "$(seed_agent_payload)" >/dev/null 2>&1 || {
+  "$cli" agent create -C "$cid" --payload-json "$(seed_agent_payload)" >>"$(hc_log_dir)/seed.log" 2>&1 || {
     ui_warn "CEO 채용에 실패했습니다. 다음에 다시 시도할 수 있습니다."
     return 0
   }

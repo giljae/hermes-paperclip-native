@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 FAKE="$(mktemp -d)"
 
-cleanup() { rm -rf "$FAKE"; }
+cleanup() { [ -n "${FAKE_KEEP:-}" ] || rm -rf "$FAKE"; }
 trap cleanup EXIT
 
 export HOME="$FAKE/home"
@@ -28,7 +28,7 @@ else
   MODE="REAL"
 fi
 
-fail() { printf '\nSMOKE FAIL: %s\n' "$1" >&2; exit 1; }
+fail() { printf '\nSMOKE FAIL: %s\n' "$1" >&2; printf '가짜 홈을 보존했습니다: %s\n' "$HOME" >&2; FAKE_KEEP=1; exit 1; }
 step() { printf '\n=== %s\n' "$1"; }
 
 printf 'SMOKE (%s) — 가짜 홈: %s\n' "$MODE" "$HOME"

@@ -46,15 +46,15 @@ step_uninstall() {
   fi
 
   rm -f "$bin/node" "$bin/npm" "$bin/npx"
-  rm -rf "$(p_node_dir)"
-  rm -rf "$(p_data_dir)"
-  rm -rf "$(hc_home)"
-  rm -rf "$(shortcut_dir)"
+  hc_rm_rf "$(p_node_dir)"
+  hc_rm_rf "$(p_data_dir)"
+  hc_rm_rf "$(hc_home)"
+  hc_rm_rf "$(shortcut_dir)"
 
   if [ "$hermes_existed" = "true" ]; then
     printf '원래 있던 Hermes 설정(~/.hermes)은 그대로 두었습니다.\n'
   else
-    rm -rf "$HOME/.hermes"
+    hc_rm_rf "$HOME/.hermes"
   fi
 
   return 0
