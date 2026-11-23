@@ -60,11 +60,11 @@ bootstrap_main() {
   local cmd="${1:-install}" v appdir
 
   if [ -n "${HC_SOURCE_DIR:-}" ] && [ -f "$HC_SOURCE_DIR/core/run.sh" ]; then
-    exec bash "$HC_SOURCE_DIR/core/run.sh" "$cmd"
+    exec bash "$HC_SOURCE_DIR/core/run.sh" "$@"
   fi
 
   if [ -f "$HC_SELF_DIR/core/run.sh" ]; then
-    exec bash "$HC_SELF_DIR/core/run.sh" "$cmd"
+    exec bash "$HC_SELF_DIR/core/run.sh" "$@"
   fi
 
   if [ -n "${HC_DRY_RUN:-}" ]; then
@@ -83,7 +83,7 @@ bootstrap_main() {
     bootstrap_download "$v" "$appdir" || return 1
   fi
 
-  exec bash "$appdir/core/run.sh" "$cmd"
+  exec bash "$appdir/core/run.sh" "$@"
 }
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then

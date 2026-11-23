@@ -258,3 +258,48 @@ p_autostart_status() {
 p_version_num() {
   printf '%s' "$1" | awk -F. '{printf "%d", $1*10000 + $2*100 + $3}'
 }
+
+# --- 백그라운드 서버 (자동 시작을 건너뛸 때) ------------------------------
+#
+# 자동 시작 등록을 건너뛰어도(CI/스모크) 서버는 떠 있어야 다음 단계(시드)가 동작한다.
+# LaunchAgent 대신 관리되지 않는 백그라운드 프로세스로 띄운다.
+
+p_server_pidfile() { printf '%s/server.pid' "$(hc_home)"; }
+
+p_server_running() {
+  local pidfile pid
+  pidfile="$(p_server_pidfile)"
+  [ -f "$pidfile" ] || return 1
+  pid="$(cat "$pidfile" 2>/dev/null)"
+  [ -n "$pid" ] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+p_server_start_bg() {
+  p_server_running && return 0
+  mkdir -p "$(hc_home)" "$(hc_log_dir)"
+  p_paperclip_env
+  p_activate_tools
+  nohup "$(p_bin_dir)/paperclipai" run >>"$(hc_log_dir)/server.log" 2>&1 &
+  printf '%s' "$!" > "$(p_server_pidfile)"
+  return 0
+}
+
+p_server_stop_bg() {
+  local pidfile pid i
+  pidfile="$(p_server_pidfile)"
+  [ -f "$pidfile" ] || return 0
+  pid="$(cat "$pidfile" 2>/dev/null)"
+  if [ -n "$pid" ]; then
+    kill "$pid" 2>/dev/null || true
+    i=0
+    while [ "$i" -lt 20 ]; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+      i=$((i + 1))
+    done
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f "$pidfile"
+  return 0
+}

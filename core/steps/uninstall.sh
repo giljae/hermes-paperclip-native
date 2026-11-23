@@ -34,6 +34,7 @@ step_uninstall() {
     esac
   fi
 
+  p_server_stop_bg
   [ -n "${HC_SKIP_AUTOSTART:-}" ] || p_autostart_remove
 
   if [ -x "$bin/paperclipai" ]; then

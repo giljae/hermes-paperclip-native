@@ -91,9 +91,20 @@ t_hermes_native_tls() {
   assert_eq "1" "${UV_NATIVE_TLS:-}" "UV_NATIVE_TLS 를 켠다"
   UV_NATIVE_TLS="$before"
 }
+t_server_pidfile_lifecycle() {
+  export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
+  mkdir -p "$(hc_home)"
+  sleep 60 &
+  local pid=$!
+  printf '%s' "$pid" > "$(p_server_pidfile)"
+  assert_status 0 "$(p_server_running; echo $?)" "pid 가 살아 있으면 실행 중"
+  p_server_stop_bg
+  if kill -0 "$pid" 2>/dev/null; then assert_eq "종료됨" "살아 있음" "중지되어야 한다"; else assert_eq "ok" "ok" "중지됨"; fi
+}
 run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
           t_install_node_skips t_persist_once t_install_node_unsets_other_node \
           t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins \
           t_pc_pins t_pc_env t_pc_skip \
           t_plist_render t_plist_no_placeholder t_status_absent \
-          t_activate_tools t_install_hermes_absolute_uv t_hermes_native_tls
+          t_activate_tools t_install_hermes_absolute_uv t_hermes_native_tls \
+          t_server_pidfile_lifecycle

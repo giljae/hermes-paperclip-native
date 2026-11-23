@@ -2,19 +2,9 @@
 # 6단계: 자동 시작 등록 + 서버가 응답할 때까지 기다리기.
 # 그리고 start/stop/status 명령.
 
-step_autostart() {
-  if [ -n "${HC_SKIP_AUTOSTART:-}" ]; then
-    ui_skip "자동 시작"
-    return 0
-  fi
-
-  if ! p_autostart_install; then
-    ui_warn "자동 시작을 등록하지 못했습니다."
-    return 0
-  fi
-
+# 서버가 응답할 때까지 기다린다(최대 60초).
+step_wait_for_health() {
   [ -n "${HC_DRY_RUN:-}" ] && return 0
-
   local url i
   url="$(p_server_url)"
   i=0
@@ -25,8 +15,25 @@ step_autostart() {
     sleep 2
     i=$((i + 1))
   done
-
   ui_warn "서버가 아직 응답하지 않습니다. 잠시 뒤 브라우저를 새로 고쳐 보세요."
+  return 0
+}
+
+step_autostart() {
+  if [ -n "${HC_SKIP_AUTOSTART:-}" ]; then
+    ui_skip "자동 시작"
+    # 자동 시작을 등록하지 않아도 서버는 떠 있어야 다음 단계가 동작한다.
+    [ -n "${HC_DRY_RUN:-}" ] || p_server_start_bg
+    step_wait_for_health
+    return 0
+  fi
+
+  if ! p_autostart_install; then
+    ui_warn "자동 시작을 등록하지 못했습니다. 대신 백그라운드로 실행합니다."
+    [ -n "${HC_DRY_RUN:-}" ] || p_server_start_bg
+  fi
+
+  step_wait_for_health
   return 0
 }
 
@@ -50,6 +57,7 @@ cmd_stop() {
     return 0
   fi
   p_autostart_remove
+  p_server_stop_bg
   printf '중지했습니다.\n'
   return 0
 }
