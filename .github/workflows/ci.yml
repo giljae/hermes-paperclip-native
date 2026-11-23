@@ -104,3 +104,26 @@ jobs:
       - name: 디스크 여유 (설치 후)
         if: always()
         run: df -h /
+
+  smoke-real-windows:
+    name: 실제 설치 스모크 · Windows (수동 전용 · 무겁다)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell 버전
+        shell: pwsh
+        run: $PSVersionTable | Out-String
+      - name: 실제 설치 → 시드 → 멱등 → 업데이트 → 제거
+        shell: pwsh
+        env:
+          HC_SMOKE_REAL: "1"
+        run: ./tests/win/smoke.ps1
+      - name: 실패 시 가짜 홈 업로드
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-smoke-home
+          path: ${{ runner.temp }}/hc-smoke-*/**
+          if-no-files-found: ignore
