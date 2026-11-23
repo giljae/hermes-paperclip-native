@@ -11,7 +11,12 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/../core/steps/90-verify.sh"
 export HC_NO_COLOR=1
 
-t_autostart_skip() { export HC_HOME="$(mktemp -d)"; local out; out="$(HC_SKIP_AUTOSTART=1 step_autostart 2>&1)"; assert_contains "$out" "건너뜀" "자동 시작 건너뛰기"; }
+t_autostart_skip() {
+  export HC_HOME="$(mktemp -d)"
+  # HC_DRY_RUN 을 켜야 실제 백그라운드 서버를 띄우지 않고 헬스 대기(5분)도 하지 않는다.
+  local out; out="$(HC_SKIP_AUTOSTART=1 HC_DRY_RUN=1 step_autostart 2>&1)"
+  assert_contains "$out" "건너뜀" "자동 시작 건너뛰기"
+}
 t_open_skip()      { export HC_HOME="$(mktemp -d)"; local out; out="$(HC_SKIP_OPEN=1 step_open 2>&1)"; assert_contains "$out" "건너뜀" "브라우저 건너뛰기"; }
 t_open_prints_url() {
   export HC_HOME="$(mktemp -d)" HOME="$(mktemp -d)"; p_detect
