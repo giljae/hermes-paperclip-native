@@ -20,6 +20,10 @@ export HC_SKIP_AUTOSTART=1
 export HC_SKIP_OPEN=1
 export HC_NO_COLOR=1
 export PAPERCLIP_HOME="$HOME/.paperclip"
+# npm 캐시를 공유한다. 이걸 매 실행마다 새 HOME 에 두면 Paperclip 페이로드(약 3.5GB)를
+# 매번 다시 내려받아 한 번 돌리는 데 20분이 넘는다(실측: 타임아웃).
+export npm_config_cache="${HC_SMOKE_NPM_CACHE:-${TMPDIR:-/tmp}/hermes-paperclip-smoke-npm-cache}"
+mkdir -p "$npm_config_cache"
 
 if [ -z "${HC_SMOKE_REAL:-}" ]; then
   export HC_DRY_RUN=1
