@@ -65,6 +65,11 @@ p_install_node() {
   want="${NODE_VERSION:-$(hc_pin NODE_VERSION)}"
   p_node_present && return 0
 
+  if [ -n "${HC_DRY_RUN:-}" ]; then
+    printf '%s → %s\n' "$(p_node_archive_url "$want")" "$(p_node_dir)"
+    return 0
+  fi
+
   if [ -n "${HC_SKIP_NETWORK:-}" ]; then
     hc_die "네트워크를 건너뛰도록 설정되어 있어 Node.js를 설치할 수 없습니다."
   fi
@@ -221,4 +226,9 @@ p_autostart_status() {
   else
     printf 'stopped'
   fi
+}
+
+# '26.7.3' -> 260703 처럼 비교 가능한 정수로 만든다.
+p_version_num() {
+  printf '%s' "$1" | awk -F. '{printf "%d", $1*10000 + $2*100 + $3}'
 }
