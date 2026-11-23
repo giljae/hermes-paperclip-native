@@ -65,8 +65,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: PowerShell 테스트
+      - name: PowerShell 7 테스트
         shell: pwsh
+        run: ./tests/win/run.ps1
+
+      # 대상 런타임은 Windows 10/11 기본 내장인 Windows PowerShell 5.1 이다.
+      # 5.1 은 BOM/문법이 7 과 달라 여기서 실제로 돌려야 한다.
+      - name: Windows PowerShell 5.1 테스트
+        shell: powershell
         run: ./tests/win/run.ps1
 
   smoke-real:
@@ -113,10 +119,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: PowerShell 버전
-        shell: pwsh
+        shell: powershell
         run: $PSVersionTable | Out-String
+      # 대상 런타임인 Windows PowerShell 5.1 로 실제 설치를 검증한다.
       - name: 실제 설치 → 시드 → 멱등 → 업데이트 → 제거
-        shell: pwsh
+        shell: powershell
         env:
           HC_SMOKE_REAL: "1"
         run: ./tests/win/smoke.ps1
