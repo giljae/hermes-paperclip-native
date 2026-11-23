@@ -101,3 +101,52 @@ p_persist_path() {
     printf 'export PATH="$HOME/.local/bin:$PATH"\n'
   } >> "$profile"
 }
+
+# --- 실행 헬퍼 -----------------------------------------------------------
+
+# HC_DRY_RUN=1 이면 실행하지 않고 명령만 출력한다(테스트/미리보기용).
+p_run() {
+  if [ -n "${HC_DRY_RUN:-}" ]; then
+    printf '%s\n' "$*"
+    return 0
+  fi
+  "$@"
+}
+
+# --- uv / Hermes --------------------------------------------------------
+
+p_uv_present() { [ -x "$(p_bin_dir)/uv" ]; }
+
+p_install_uv() {
+  local tmp
+  p_uv_present && return 0
+  if [ -n "${HC_DRY_RUN:-}" ]; then
+    printf '%s\n' "uv 설치 (astral.sh)"
+    return 0
+  fi
+  tmp="$(mktemp -d)"
+  ft_download "https://astral.sh/uv/install.sh" "$tmp/uv-install.sh" \
+    || hc_die "uv 설치 스크립트를 받지 못했습니다. 인터넷 연결을 확인해 주세요."
+  UV_INSTALL_DIR="$(p_bin_dir)" sh "$tmp/uv-install.sh" >/dev/null 2>&1 \
+    || hc_die "uv 설치에 실패했습니다."
+  rm -rf "$tmp"
+  p_uv_present
+}
+
+p_hermes_present() { [ -x "$(p_bin_dir)/hermes" ]; }
+
+p_install_hermes() {
+  local py hermes
+  py="${PYTHON_VERSION:-$(hc_pin PYTHON_VERSION)}"
+  hermes="${HERMES_VERSION:-$(hc_pin HERMES_VERSION)}"
+
+  # DRY_RUN 에서는 이미 설치돼 있어도 계획을 보여준다(사람이 미리 확인할 수 있게).
+  if [ -z "${HC_DRY_RUN:-}" ] && p_hermes_present; then
+    return 0
+  fi
+
+  p_run uv python install "$py" || hc_die "Python $py 설치에 실패했습니다."
+  p_run uv tool install "hermes-agent==$hermes" || hc_die "Hermes 설치에 실패했습니다."
+
+  [ -n "${HC_DRY_RUN:-}" ] || p_hermes_present
+}

@@ -38,5 +38,23 @@ t_install_node_unsets_other_node() {
   local out; out="$(PATH="$(p_bin_dir):$PATH" command -v node)"
   assert_eq "$(p_bin_dir)/node" "$out" "우리 node가 우선한다"
 }
+t_uv_present_true() {
+  mkdir -p "$(p_bin_dir)"; printf '#!/bin/sh\nexit 0\n' > "$(p_bin_dir)/uv"; chmod +x "$(p_bin_dir)/uv"
+  assert_status 0 "$(p_uv_present; echo $?)" "uv 존재 판정"
+}
+t_uv_skip() {
+  mkdir -p "$(p_bin_dir)"; printf '#!/bin/sh\nexit 0\n' > "$(p_bin_dir)/uv"; chmod +x "$(p_bin_dir)/uv"
+  p_install_uv; assert_status 0 $? "이미 있으면 건너뛴다"
+}
+t_hermes_present() {
+  mkdir -p "$(p_bin_dir)"; : > "$(p_bin_dir)/hermes"; chmod +x "$(p_bin_dir)/hermes"
+  assert_status 0 "$(p_hermes_present; echo $?)" "hermes 존재 판정"
+}
+t_hermes_pins() {
+  local out; out="$(HC_DRY_RUN=1 p_install_hermes)"
+  assert_contains "$out" "uv tool install hermes-agent==0.19.0" "Hermes 버전 핀"
+  assert_contains "$out" "uv python install 3.13" "Python 버전 핀"
+}
 run_tests t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
-          t_install_node_skips t_persist_once t_install_node_unsets_other_node
+          t_install_node_skips t_persist_once t_install_node_unsets_other_node \
+          t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins
