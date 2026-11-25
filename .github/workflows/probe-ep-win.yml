@@ -1,16 +1,12 @@
 name: Probe embedded Postgres (Windows)
 
 # 일회성 진단용(수동 전용). Windows 실제 설치 스모크가 실패하는 근본 원인을
-# 찾기 위해, Paperclip 서버가 쓰는 embedded-postgres 의 initdb 를 서버와 동일한
-# 인자로 직접 실행하고 stdout+stderr 를 전부 CI 로그에 남긴다.
-#
-# 배경: `embedded-postgres` 의 initialise() 는 initdb 의 stdout 만 캡처하고
-# stderr 는 파이프만 열어둔 채 아무도 읽지 않는다 → 실제 에러가 로그에서 사라진다.
-# 그래서 라이브러리를 거치지 않고 initdb 를 직접 돌려 진짜 메시지를 본다.
+# 찾기 위한 프로브 모음. 끝나면 지운다.
 on:
   workflow_dispatch:
 
 jobs:
+  # A) embedded-postgres 의 initdb 가 Windows 러너에서 왜 실패하는가
   probe-ep-win:
     name: embedded Postgres initdb 진단 (Windows)
     runs-on: windows-latest
@@ -40,7 +36,6 @@ jobs:
           $initdb = Join-Path $ep "package\native\bin\initdb.exe"
           Write-Host "initdb: $initdb"
           if (-not (Test-Path -LiteralPath $initdb)) { throw "initdb 를 찾지 못했다" }
-          Get-ChildItem (Join-Path $ep "package\native\bin") | Select-Object -First 5 | Format-Table Name, Length
 
       - name: initdb 진단 (여러 위치/조건, 2>&1 전체 캡처)
         shell: pwsh
@@ -56,15 +51,8 @@ jobs:
             Write-Host "pgdata: $Root"
             Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
             if ($PreCreate) { New-Item -ItemType Directory -Force -Path $Root | Out-Null }
-            $parent = Split-Path -Parent $Root
-            if (Test-Path -LiteralPath $parent) {
-              Write-Host "--- icacls parent ---"
-              icacls $parent 2>&1 | ForEach-Object { Write-Host $_ }
-            }
             Write-Host "--- initdb (서버와 동일 인자) ---"
-            # 서버(ensureEmbeddedPostgres)가 넘기는 인자 순서를 그대로 재현한다:
-            # embedded-postgres 가 --lc-messages=en_US.UTF-8 을 먼저 넣고
-            # initdbFlags("--encoding=UTF8 --locale=C --lc-messages=C")가 뒤따른다.
+            # 서버(ensureEmbeddedPostgres)가 넘기는 인자 순서를 그대로 재현한다.
             & $initdb "--pgdata=$Root" "--auth=password" "--username=paperclip" `
               "--pwfile=$pw" "--lc-messages=en_US.UTF-8" `
               "--encoding=UTF8" "--locale=C" "--lc-messages=C" 2>&1 |
@@ -78,5 +66,73 @@ jobs:
           Invoke-Probe "C) LOCALAPPDATA(C:) 기존 빈 디렉터리"    (Join-Path $env:LOCALAPPDATA "Temp\probe-c\db") -PreCreate
 
           Write-Host ""
-          Write-Host "=== PROBE DONE (실패해도 계속) ==="
+          Write-Host "=== PROBE A DONE (실패해도 계속) ==="
+          exit 0
+
+  # B) Windows PowerShell 5.1 에서 JSON 인자를 네이티브(node)에 어떻게 넘겨야
+  #    한 개의 argv 로 도착하는가. 현재 코드의 `\"` 이스케이프가 왜 깨지는지 확인.
+  probe-ps51-arg:
+    name: PowerShell 5.1 JSON 인자 전달 진단 (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: argv.js 준비
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "argprobe"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          Set-Content -LiteralPath (Join-Path $dir "argv.js") `
+            -Value 'console.log(JSON.stringify(process.argv.slice(2)))' -Encoding utf8
+          Get-Content -LiteralPath (Join-Path $dir "argv.js")
+
+      - name: Windows PowerShell 5.1 로 여러 방식 비교
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $js = Join-Path $env:RUNNER_TEMP "argprobe\argv.js"
+          $node = (Get-Command node).Source
+          $json = '{"name":"내 AI 회사","issuePrefix":"AI"}'
+          Write-Host "PSVersion: $($PSVersionTable.PSVersion)"
+          Write-Host "node: $node"
+
+          Write-Host ""
+          Write-Host "=== 1) raw (이스케이프 없음) ==="
+          & $node $js --payload-json $json
+
+          Write-Host ""
+          Write-Host "=== 2) 현재 코드: quote -> backslash-quote ==="
+          & $node $js --payload-json ($json.Replace('"','\"'))
+
+          Write-Host ""
+          Write-Host "=== 3) .NET Process + 수동 Windows 인용 ==="
+          function Quote-WinArg([string]$a) {
+            if ($a -notmatch '[\s"]') { return $a }
+            $sb = New-Object Text.StringBuilder
+            [void]$sb.Append('"')
+            $bs = 0
+            foreach ($ch in $a.ToCharArray()) {
+              if ($ch -eq '\') { $bs++; continue }
+              if ($ch -eq '"') {
+                [void]$sb.Append('\' * (2*$bs + 1)); [void]$sb.Append('"'); $bs = 0; continue
+              }
+              if ($bs -gt 0) { [void]$sb.Append('\' * $bs); $bs = 0 }
+              [void]$sb.Append($ch)
+            }
+            [void]$sb.Append('\' * (2*$bs)); [void]$sb.Append('"')
+            return $sb.ToString()
+          }
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = $node
+          $psi.Arguments = (@($js, '--payload-json', $json) | ForEach-Object { Quote-WinArg $_ }) -join ' '
+          $psi.UseShellExecute = $false
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $p = [System.Diagnostics.Process]::Start($psi)
+          $o = $p.StandardOutput.ReadToEnd(); $e = $p.StandardError.ReadToEnd(); $p.WaitForExit()
+          Write-Host "stdout: $o"
+          if ($e) { Write-Host "stderr: $e" }
+          Write-Host "exit  : $($p.ExitCode)"
+
+          Write-Host ""
+          Write-Host "=== PROBE B DONE ==="
           exit 0
