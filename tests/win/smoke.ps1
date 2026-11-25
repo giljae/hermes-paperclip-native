@@ -9,7 +9,13 @@ $ErrorActionPreference = "Continue"
 $OutputEncoding = [Text.Encoding]::UTF8
 
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$Base = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
+# 가짜 홈은 C: 에 둔다. 실제 사용자 홈도 C: 이고, embedded Postgres 의 initdb 는
+# "미리 존재하는 데이터 디렉터리"가 D:(GitHub 러너의 RUNNER_TEMP)에 있으면 chmod 가
+# EACCES(Permission denied)로 실패한다(실측). D: 는 러너 특성이므로 실제 설치
+# 조건과 맞춘다.
+$Base = if ($env:HC_SMOKE_BASE) { $env:HC_SMOKE_BASE }
+        elseif ($env:LOCALAPPDATA) { $env:LOCALAPPDATA }
+        else { [IO.Path]::GetTempPath() }
 $Fake = Join-Path $Base ("hc-smoke-" + [guid]::NewGuid().ToString("N"))
 $FakeHome = Join-Path $Fake "home"
 New-Item -ItemType Directory -Force -Path $FakeHome | Out-Null
@@ -45,6 +51,14 @@ function Fail {
         }
     }
     Write-Host "가짜 홈을 보존했습니다: $FakeHome"
+    # 아티팩트 업로드용. 가짜 홈은 C: 에 있어 워크플로의 ${{ runner.temp }} 글롭과
+    # 맞지 않으므로, 필요한 로그만 RUNNER_TEMP(D:)로 모아 둔다.
+    if ($env:RUNNER_TEMP) {
+        $drop = Join-Path $env:RUNNER_TEMP "win-smoke-logs"
+        New-Item -ItemType Directory -Force -Path $drop | Out-Null
+        $logsDir = Join-Path $env:HC_HOME "logs"
+        if (Test-Path -LiteralPath $logsDir) { Copy-Item -LiteralPath $logsDir -Destination $drop -Recurse -Force -ErrorAction SilentlyContinue }
+    }
     if ($script:InstallOut) {
         Write-Host "--- 설치 출력 (tail) ---" -ForegroundColor Yellow
         ($script:InstallOut -split "`n" | Select-Object -Last 60) | ForEach-Object { Write-Host $_ }
