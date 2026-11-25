@@ -66,7 +66,14 @@ function Fail {
     $script:Keep = $true
     throw "SMOKE FAIL"
 }
-function Step { param([string]$Name) Write-Host ""; Write-Host "=== $Name" }
+# 진행 상황을 파일로도 남긴다(CI 제한 토큰 실행에서 멈췄을 때 위치를 보기 위함).
+function Note {
+    param([string]$Text)
+    if ($env:HC_SMOKE_PROGRESS) {
+        try { Add-Content -LiteralPath $env:HC_SMOKE_PROGRESS -Value "$Text" -Encoding UTF8 } catch { }
+    }
+}
+function Step { param([string]$Name) Write-Host ""; Write-Host "=== $Name"; Note "STEP $Name" }
 
 # 현재 PowerShell 호스트와 같은 실행 파일을 쓴다(pwsh/powershell 혼동 방지).
 $psExe = "pwsh"
@@ -87,10 +94,14 @@ function Invoke-Bootstrap {
     $sp = @{
         FilePath = $psExe; ArgumentList = $procArgs
         RedirectStandardOutput = $o; RedirectStandardError = $e
-        Wait = $true; PassThru = $true
+        PassThru = $true
     }
     if ($env:OS -eq "Windows_NT") { $sp["WindowStyle"] = "Hidden" }
+    # -Wait 는 자식 트리(설치가 띄운 백그라운드 서버)까지 기다려 멈춘다. WaitForExit
+    # 는 이 프로세스(bootstrap)만 기다린다.
     $p = Start-Process @sp
+    $p.WaitForExit()
+    Note "bootstrap exited $($p.ExitCode)"
     $out = ""
     if (Test-Path -LiteralPath $o) { $out += (Get-Content -LiteralPath $o -Raw) }
     if (Test-Path -LiteralPath $e) { $out += (Get-Content -LiteralPath $e -Raw) }

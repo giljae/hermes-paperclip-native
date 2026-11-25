@@ -140,6 +140,7 @@ jobs:
           $lines = @(
             "@echo off",
             "set HC_SMOKE_REAL=1",
+            "set HC_SMOKE_PROGRESS=%RUNNER_TEMP%\smoke-progress.log",
             "`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$smoke`" > `"$log`" 2>&1",
             "echo SMOKE_EXIT=%ERRORLEVEL% >> `"$log`""
           ) -join "`r`n"
@@ -150,8 +151,17 @@ jobs:
 
           $deadline = (Get-Date).AddMinutes(65)
           $code = $null
+          $prog = Join-Path $env:RUNNER_TEMP "smoke-progress.log"
+          $seenProg = 0
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 5
+            if (Test-Path -LiteralPath $prog) {
+              $pl = @(Get-Content -LiteralPath $prog -ErrorAction SilentlyContinue)
+              if ($pl.Count -gt $seenProg) {
+                for ($i = $seenProg; $i -lt $pl.Count; $i++) { Write-Host "[progress] $($pl[$i])" }
+                $seenProg = $pl.Count
+              }
+            }
             if (Test-Path -LiteralPath $log) {
               $c = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
               if ($c -match "SMOKE_EXIT=(\d+)") { $code = [int]$Matches[1]; break }
