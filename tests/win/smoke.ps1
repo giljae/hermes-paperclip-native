@@ -104,7 +104,7 @@ function Invoke-Bootstrap {
     }
     $code = $LASTEXITCODE
     Note "bootstrap $($CommandArgs -join ' ') exit $code"
-    $out = if (Test-Path -LiteralPath $o) { Get-Content -LiteralPath $o -Raw } else { "" }
+    $out = if (Test-Path -LiteralPath $o) { Get-Content -LiteralPath $o -Raw -Encoding UTF8 } else { "" }
     Remove-Item -LiteralPath $o -Force -ErrorAction SilentlyContinue
     return @{ Out = $out; Code = $code }
 }
