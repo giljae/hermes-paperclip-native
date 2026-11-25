@@ -115,7 +115,7 @@ jobs:
     name: 실제 설치 스모크 · Windows (수동 전용 · 무겁다)
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - name: PowerShell 버전
@@ -148,7 +148,7 @@ jobs:
           Write-Host "launching smoke under a restricted token..."
           Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", $cmd | Out-Null
 
-          $deadline = (Get-Date).AddMinutes(40)
+          $deadline = (Get-Date).AddMinutes(65)
           $code = $null
           while ((Get-Date) -lt $deadline) {
             Start-Sleep -Seconds 5

@@ -74,8 +74,12 @@ try { $p = Get-Process -Id $PID; if ($p.Path) { $psExe = $p.Path } } catch { }
 
 function Invoke-Bootstrap {
     param([string[]]$CommandArgs)
-    $out = & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "win\bootstrap.ps1") @CommandArgs 2>&1 | Out-String
-    return @{ Out = $out; Code = $LASTEXITCODE }
+    # 출력을 한 줄씩 즉시 내보낸다. 그렇지 않으면(Out-String) 설치가 오래 걸릴 때
+    # 진행 상황을 전혀 볼 수 없다(실측: 제한 토큰 실행에서 40분간 "=== 1) 설치"만 보였다).
+    $lines = New-Object System.Collections.ArrayList
+    & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "win\bootstrap.ps1") @CommandArgs 2>&1 |
+        ForEach-Object { [void]$lines.Add("$_"); Write-Host $_ }
+    return @{ Out = ($lines -join "`n"); Code = $LASTEXITCODE }
 }
 
 $failed = $false
