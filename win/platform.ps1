@@ -34,6 +34,18 @@ function Get-HcPlatform {
 # Windows 데스크톱에는 항상 GUI 세션이 있다.
 function Test-HcHasDisplay { return $true }
 
+# 현재 프로세스가 승격된(elevated) 관리자 토큰으로 도는가. 내장 Postgres 는
+# 관리자 토큰에서 기동을 거부한다. 비승격 관리자(UAC 필터 토큰)는 Administrators
+# 그룹이 deny-only 라 false 를 돌려준다 — 그 경우엔 정상 기동한다.
+function Test-HcElevated {
+    if ($env:OS -ne "Windows_NT") { return $false }
+    try {
+        $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        $p = New-Object System.Security.Principal.WindowsPrincipal($id)
+        return $p.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch { return $false }
+}
+
 # Node 공식 win-x64/win-arm64 zip. 압축을 풀면 node-v<ver>-win-<arch>\ 아래에 들어 있다.
 function Get-HcNodeArchiveUrl {
     param([string]$Version)

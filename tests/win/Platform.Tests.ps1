@@ -109,5 +109,8 @@ $script:Tests = @(
     @{ Name = "자동 시작 상태는 등록이 없으면 absent 다"; Body = {
         $env:HC_HOME = New-HcTempDir
         Assert-Equal "absent" (Get-HcAutostartStatus) "등록 없음"
+    } },
+    @{ Name = "승격 감지는 예외 없이 bool 을 돌려준다"; Body = {
+        Assert-True ((Test-HcElevated) -is [bool]) "bool 반환"
     } }
 )

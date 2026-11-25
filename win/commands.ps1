@@ -313,6 +313,11 @@ function Get-HcStepBody {
 
 function Invoke-HcInstall {
     Set-HcManifest "INSTALLER_VERSION" (Get-HcVersion)
+    # 내장 Postgres 는 승격된 관리자 토큰에서 기동하지 않는다(실측). 실패하고 나서
+    # 이유를 알기 어려우므로 설치 시작에 미리 알린다.
+    if (Test-HcElevated) {
+        Write-HcWarn "관리자 권한으로 실행 중입니다. Paperclip 의 내장 Postgres 는 관리자 권한에서 뜨지 않습니다. 관리자 권한 없이 일반 창에서 다시 실행해 주세요."
+    }
     $steps = Get-HcInstallSteps
     $total = $steps.Count
     foreach ($s in $steps) {
