@@ -1,0 +1,82 @@
+name: Probe embedded Postgres (Windows)
+
+# 일회성 진단용(수동 전용). Windows 실제 설치 스모크가 실패하는 근본 원인을
+# 찾기 위해, Paperclip 서버가 쓰는 embedded-postgres 의 initdb 를 서버와 동일한
+# 인자로 직접 실행하고 stdout+stderr 를 전부 CI 로그에 남긴다.
+#
+# 배경: `embedded-postgres` 의 initialise() 는 initdb 의 stdout 만 캡처하고
+# stderr 는 파이프만 열어둔 채 아무도 읽지 않는다 → 실제 에러가 로그에서 사라진다.
+# 그래서 라이브러리를 거치지 않고 initdb 를 직접 돌려 진짜 메시지를 본다.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-ep-win:
+    name: embedded Postgres initdb 진단 (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: 환경 정보
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          Write-Host "whoami      : $(whoami)"
+          Write-Host "RUNNER_TEMP : $env:RUNNER_TEMP"
+          Write-Host "LOCALAPPDATA: $env:LOCALAPPDATA"
+
+      - name: embedded-postgres 바이너리 내려받기
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ep = Join-Path $env:RUNNER_TEMP "ep"
+          Remove-Item -LiteralPath $ep -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $ep | Out-Null
+          Push-Location $ep
+          npm pack "@embedded-postgres/windows-x64@18.1.0-beta.16"
+          $tgz = (Get-ChildItem -Filter *.tgz | Select-Object -First 1).FullName
+          tar -xzf $tgz
+          Pop-Location
+          $initdb = Join-Path $ep "package\native\bin\initdb.exe"
+          Write-Host "initdb: $initdb"
+          if (-not (Test-Path -LiteralPath $initdb)) { throw "initdb 를 찾지 못했다" }
+          Get-ChildItem (Join-Path $ep "package\native\bin") | Select-Object -First 5 | Format-Table Name, Length
+
+      - name: initdb 진단 (여러 위치/조건, 2>&1 전체 캡처)
+        shell: pwsh
+        run: |
+          $initdb = Join-Path $env:RUNNER_TEMP "ep\package\native\bin\initdb.exe"
+          $pw = Join-Path $env:RUNNER_TEMP "probe-pw.txt"
+          Set-Content -LiteralPath $pw -Value "paperclip" -Encoding ascii
+
+          function Invoke-Probe {
+            param([string]$Label, [string]$Root, [switch]$PreCreate)
+            Write-Host ""
+            Write-Host "############ $Label"
+            Write-Host "pgdata: $Root"
+            Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
+            if ($PreCreate) { New-Item -ItemType Directory -Force -Path $Root | Out-Null }
+            $parent = Split-Path -Parent $Root
+            if (Test-Path -LiteralPath $parent) {
+              Write-Host "--- icacls parent ---"
+              icacls $parent 2>&1 | ForEach-Object { Write-Host $_ }
+            }
+            Write-Host "--- initdb (서버와 동일 인자) ---"
+            # 서버(ensureEmbeddedPostgres)가 넘기는 인자 순서를 그대로 재현한다:
+            # embedded-postgres 가 --lc-messages=en_US.UTF-8 을 먼저 넣고
+            # initdbFlags("--encoding=UTF8 --locale=C --lc-messages=C")가 뒤따른다.
+            & $initdb "--pgdata=$Root" "--auth=password" "--username=paperclip" `
+              "--pwfile=$pw" "--lc-messages=en_US.UTF-8" `
+              "--encoding=UTF8" "--locale=C" "--lc-messages=C" 2>&1 |
+              ForEach-Object { Write-Host $_ }
+            Write-Host "--- exit code: $LASTEXITCODE ---"
+            Write-Host "--- PG_VERSION 존재: $(Test-Path -LiteralPath (Join-Path $Root 'PG_VERSION')) ---"
+          }
+
+          Invoke-Probe "A) RUNNER_TEMP(D:) 새 디렉터리(부모 없음)" (Join-Path $env:RUNNER_TEMP "probe-a\db")
+          Invoke-Probe "B) RUNNER_TEMP(D:) 기존 빈 디렉터리"      (Join-Path $env:RUNNER_TEMP "probe-b\db") -PreCreate
+          Invoke-Probe "C) LOCALAPPDATA(C:) 기존 빈 디렉터리"    (Join-Path $env:LOCALAPPDATA "Temp\probe-c\db") -PreCreate
+
+          Write-Host ""
+          Write-Host "=== PROBE DONE (실패해도 계속) ==="
+          exit 0
