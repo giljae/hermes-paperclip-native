@@ -35,7 +35,7 @@ jobs:
           Pop-Location
           $initdb = Join-Path $ep "package\native\bin\initdb.exe"
           Write-Host "initdb: $initdb"
-          if (-not (Test-Path -LiteralPath $initdb)) { throw "initdb 를 찾지 못했다" }
+          if (-not (Test-Path -LiteralPath $initdb)) { throw "initdb not found" }
 
       - name: initdb 진단 (여러 위치/조건, 2>&1 전체 캡처)
         shell: pwsh
@@ -51,60 +51,64 @@ jobs:
             Write-Host "pgdata: $Root"
             Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
             if ($PreCreate) { New-Item -ItemType Directory -Force -Path $Root | Out-Null }
-            Write-Host "--- initdb (서버와 동일 인자) ---"
-            # 서버(ensureEmbeddedPostgres)가 넘기는 인자 순서를 그대로 재현한다.
+            Write-Host "--- initdb (server-identical args) ---"
             & $initdb "--pgdata=$Root" "--auth=password" "--username=paperclip" `
               "--pwfile=$pw" "--lc-messages=en_US.UTF-8" `
               "--encoding=UTF8" "--locale=C" "--lc-messages=C" 2>&1 |
               ForEach-Object { Write-Host $_ }
             Write-Host "--- exit code: $LASTEXITCODE ---"
-            Write-Host "--- PG_VERSION 존재: $(Test-Path -LiteralPath (Join-Path $Root 'PG_VERSION')) ---"
+            Write-Host "--- PG_VERSION exists: $(Test-Path -LiteralPath (Join-Path $Root 'PG_VERSION')) ---"
           }
 
-          Invoke-Probe "A) RUNNER_TEMP(D:) 새 디렉터리(부모 없음)" (Join-Path $env:RUNNER_TEMP "probe-a\db")
-          Invoke-Probe "B) RUNNER_TEMP(D:) 기존 빈 디렉터리"      (Join-Path $env:RUNNER_TEMP "probe-b\db") -PreCreate
-          Invoke-Probe "C) LOCALAPPDATA(C:) 기존 빈 디렉터리"    (Join-Path $env:LOCALAPPDATA "Temp\probe-c\db") -PreCreate
+          Invoke-Probe "A) RUNNER_TEMP(D:) fresh dir (no parent)" (Join-Path $env:RUNNER_TEMP "probe-a\db")
+          Invoke-Probe "B) RUNNER_TEMP(D:) pre-existing empty dir" (Join-Path $env:RUNNER_TEMP "probe-b\db") -PreCreate
+          Invoke-Probe "C) LOCALAPPDATA(C:) pre-existing empty dir" (Join-Path $env:LOCALAPPDATA "Temp\probe-c\db") -PreCreate
 
           Write-Host ""
-          Write-Host "=== PROBE A DONE (실패해도 계속) ==="
+          Write-Host "=== PROBE A DONE ==="
           exit 0
 
   # B) Windows PowerShell 5.1 에서 JSON 인자를 네이티브(node)에 어떻게 넘겨야
-  #    한 개의 argv 로 도착하는가. 현재 코드의 `\"` 이스케이프가 왜 깨지는지 확인.
+  #    한 개의 argv 로 도착하는가. 현재 코드의 backslash-quote 이스케이프가 왜
+  #    깨지는지 확인한다.
+  #
+  #    주의: 이 스텝은 Windows PowerShell 5.1 로 돌기 때문에 스크립트에 ASCII 만
+  #    쓴다(비ASCII 는 BOM 없는 파일에서 코드페이지로 오독되어 ParserError 가 된다).
   probe-ps51-arg:
-    name: PowerShell 5.1 JSON 인자 전달 진단 (Windows)
+    name: PowerShell 5.1 JSON arg 전달 진단 (Windows)
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - name: argv.js 준비
+      - name: prepare argv.js
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP "argprobe"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           Set-Content -LiteralPath (Join-Path $dir "argv.js") `
-            -Value 'console.log(JSON.stringify(process.argv.slice(2)))' -Encoding utf8
+            -Value 'console.log(JSON.stringify(process.argv.slice(2)))' -Encoding ascii
           Get-Content -LiteralPath (Join-Path $dir "argv.js")
 
-      - name: Windows PowerShell 5.1 로 여러 방식 비교
+      - name: compare arg passing styles under Windows PowerShell 5.1
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
           $js = Join-Path $env:RUNNER_TEMP "argprobe\argv.js"
           $node = (Get-Command node).Source
-          $json = '{"name":"내 AI 회사","issuePrefix":"AI"}'
+          $json = '{"name":"My AI Company","issuePrefix":"AI"}'
           Write-Host "PSVersion: $($PSVersionTable.PSVersion)"
           Write-Host "node: $node"
+          Write-Host "json: $json"
 
           Write-Host ""
-          Write-Host "=== 1) raw (이스케이프 없음) ==="
+          Write-Host "=== 1) raw (no escaping) ==="
           & $node $js --payload-json $json
 
           Write-Host ""
-          Write-Host "=== 2) 현재 코드: quote -> backslash-quote ==="
+          Write-Host "=== 2) current code: quote -> backslash-quote ==="
           & $node $js --payload-json ($json.Replace('"','\"'))
 
           Write-Host ""
-          Write-Host "=== 3) .NET Process + 수동 Windows 인용 ==="
+          Write-Host "=== 3) .NET Process + manual Windows quoting ==="
           function Quote-WinArg([string]$a) {
             if ($a -notmatch '[\s"]') { return $a }
             $sb = New-Object Text.StringBuilder
