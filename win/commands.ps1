@@ -193,24 +193,71 @@ function Get-HcSeedAgentJson {
     return ($obj | ConvertTo-Json -Depth 6 -Compress)
 }
 
-# PowerShell 5.1 은 네이티브 실행 파일에 넘기는 인자 안의 `"` 를 이스케이프하지 않아
-# JSON 이 깨진다(실측: --payload-json → "Expected property name"). `"` 를 `\"` 로
-# 바꿔 C 런타임이 리터럴 따옴표로 해석하게 한다. PS 7.3+ 는 자체 처리하므로 그대로 둔다.
-function ConvertTo-HcJsonArg {
-    param([string]$Json)
-    if ($PSVersionTable.PSVersion.Major -lt 7 -or -not (Get-Variable PSNativeCommandArgumentPassing -ErrorAction SilentlyContinue)) {
-        return $Json.Replace('"', '\"')
+# Windows 네이티브 인자 인용(CommandLineToArgvW 규칙). 공백/따옴표가 있으면 큰따옴표로
+# 감싸고, 내부 `"` 앞의 백슬래시를 규칙대로 늘린다(끝 백슬래시도 두 배). 실측으로
+# 검증했다(프로브 워크플로).
+function ConvertTo-HcWinArg {
+    param([string]$Arg)
+    if ($Arg -notmatch '[\s"]') { return $Arg }
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append('"')
+    $backslashes = 0
+    foreach ($ch in $Arg.ToCharArray()) {
+        if ($ch -eq '\') { $backslashes++; continue }
+        if ($ch -eq '"') {
+            [void]$sb.Append('\' * (2 * $backslashes + 1))
+            [void]$sb.Append('"')
+            $backslashes = 0
+            continue
+        }
+        if ($backslashes -gt 0) { [void]$sb.Append('\' * $backslashes); $backslashes = 0 }
+        [void]$sb.Append($ch)
     }
-    return $Json
+    [void]$sb.Append('\' * (2 * $backslashes))
+    [void]$sb.Append('"')
+    return $sb.ToString()
+}
+
+# PowerShell 5.1 은 네이티브 실행 파일에 인자를 넘길 때 안쪽 `"` 를 제대로 다루지
+# 못한다(실측, JSON 인자):
+#   - 그대로     → 따옴표가 벗겨져 JSON 이 무효가 된다                 ("Expected property name")
+#   - `"`→`\"`  → 공백에서 인자가 여러 개로 쪼개진다                   ("too many arguments")
+# 그래서 우리가 Windows command line 을 직접 만들어 .NET Process 로 넘긴다(이 경로는
+# PowerShell 의 인자 재조립을 거치지 않는다). stdout 을 돌려준다.
+function Invoke-HcNative {
+    param([string]$Exe, [string[]]$Arguments, [string]$Log)
+    $argLine = ($Arguments | ForEach-Object { ConvertTo-HcWinArg $_ }) -join ' '
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    if ($Exe -match '\.(cmd|bat)$') {
+        # .cmd 폴백(페이로드가 없을 때만 쓰인다).
+        $psi.FileName = if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" }
+        $psi.Arguments = "/d /s /c `"`"$Exe`" $argLine`""
+    } else {
+        $psi.FileName = $Exe
+        $psi.Arguments = $argLine
+    }
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $outTask = $p.StandardOutput.ReadToEndAsync()
+    $errTask = $p.StandardError.ReadToEndAsync()
+    $out = $outTask.Result
+    $err = $errTask.Result
+    $p.WaitForExit()
+    if ($Log) {
+        if ($err) { Add-Content -LiteralPath $Log -Value $err -Encoding UTF8 }
+        if ($out) { Add-Content -LiteralPath $Log -Value $out -Encoding UTF8 }
+    }
+    return $out
 }
 
 function Invoke-HcStepSeed {
     $env:PAPERCLIP_HOME = Get-HcDataDir
-    $cli = Join-Path (Get-HcBinDir) "paperclipai.cmd"
-    if (-not (Test-Path -LiteralPath $cli)) { $cli = "paperclipai" }
+    $call = Get-HcPaperclipCommand
 
     if ($env:HC_DRY_RUN) {
-        $call = Get-HcPaperclipCommand
         Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $($call.Exe) company create --payload-json <회사>"
         Write-Host "PAPERCLIP_HOME=$(Get-HcDataDir) $($call.Exe) agent create -C <회사 id> --payload-json <CEO>"
         return $true
@@ -218,32 +265,19 @@ function Invoke-HcStepSeed {
 
     New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
     $seedLog = Join-Path (Get-HcLogDir) "seed.log"
+    $pre = @($call.Pre)
 
-    # .cmd 를 거치면 JSON 인자가 깨진다(실측: --payload-json 이 invalid JSON).
-    # node + payload 엔트리를 직접 쓰고, 인자를 그대로 넘긴다.
-    $call = Get-HcPaperclipCommand
-    $exe = $call.Exe
-    $pre = $call.Pre
-
-    # paperclipai 는 서버에 닿지 못하면 stderr 로 쓴다. Stop 이면 그 경고가 종료
-    # 오류가 되므로 호출 동안 Continue 로 낮춘다.
-    $prev = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
-        if (-not $cid) {
-            & $exe @pre company create --payload-json (ConvertTo-HcJsonArg (Get-HcSeedCompanyJson)) *>> $seedLog
-            $cid = Get-HcFirstId (& $exe @pre company list --json 2>$null | Out-String)
-        }
-        if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
-
-        $agents = (& $exe @pre agent list -C $cid --json 2>$null | Out-String)
-        if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
-
-        & $exe @pre agent create -C $cid --payload-json (ConvertTo-HcJsonArg (Get-HcSeedAgentJson)) *>> $seedLog
-    } finally {
-        $ErrorActionPreference = $prev
+    $cid = Get-HcFirstId (Invoke-HcNative $call.Exe ($pre + @("company", "list", "--json")))
+    if (-not $cid) {
+        Invoke-HcNative $call.Exe ($pre + @("company", "create", "--payload-json", (Get-HcSeedCompanyJson))) $seedLog | Out-Null
+        $cid = Get-HcFirstId (Invoke-HcNative $call.Exe ($pre + @("company", "list", "--json")))
     }
+    if (-not $cid) { Write-HcWarn "회사 id 를 확인하지 못해 CEO 채용을 건너뜁니다."; return $true }
+
+    $agents = Invoke-HcNative $call.Exe ($pre + @("agent", "list", "-C", $cid, "--json"))
+    if ($agents -match "CEO") { Write-HcSkip "이미 CEO 가 있습니다"; return $true }
+
+    Invoke-HcNative $call.Exe ($pre + @("agent", "create", "-C", $cid, "--payload-json", (Get-HcSeedAgentJson))) $seedLog | Out-Null
     return $true
 }
 

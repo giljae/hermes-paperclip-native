@@ -93,5 +93,11 @@ $script:Tests = @(
         Assert-Contains $c "node.exe" "node 를 부른다"
         Assert-Contains $c "index.js" "엔트리를 부른다"
         Assert-Contains $c "%*" "인자를 넘긴다"
+    } },
+    @{ Name = "Windows 네이티브 인자는 공백/따옴표를 규칙대로 인용한다"; Body = {
+        Assert-Equal "--payload-json" (ConvertTo-HcWinArg "--payload-json") "공백 없음 → 그대로"
+        Assert-Equal '"C:\Program Files\x"' (ConvertTo-HcWinArg "C:\Program Files\x") "공백 → 큰따옴표"
+        Assert-Equal '"C:\Program Files\\"' (ConvertTo-HcWinArg "C:\Program Files\") "끝 백슬래시 두 배"
+        Assert-Equal '"{\"name\":\"My AI Company\",\"issuePrefix\":\"AI\"}"' (ConvertTo-HcWinArg '{"name":"My AI Company","issuePrefix":"AI"}') "JSON → 이스케이프+인용"
     } }
 )
