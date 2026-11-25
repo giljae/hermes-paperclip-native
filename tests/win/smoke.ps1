@@ -81,32 +81,22 @@ try { $p = Get-Process -Id $PID; if ($p.Path) { $psExe = $p.Path } } catch { }
 
 function Invoke-Bootstrap {
     param([string[]]$CommandArgs)
-    # 파이프(& ... | Out-String)로 받으면 안 된다: 설치가 띄운 백그라운드 서버가
-    # 부모의 stdout 핸들을 물고 있어 파이프가 닫히지 않고 스모크가 영원히 멈춘다
-    # (실측: 설치 9단계가 끝난 뒤 진행 없음). Start-Process 의 파일 리다이렉트는
-    # 파이프를 쓰지 않으므로 이 문제가 없다.
-    $dir = [IO.Path]::GetTempPath()
-    $tag = [guid]::NewGuid().ToString("N")
-    $o = Join-Path $dir "hc-boot-$tag.out"
-    $e = Join-Path $dir "hc-boot-$tag.err"
+    # PowerShell 파이프(& ... | Out-String)는 설치가 띄운 백그라운드 서버가 핸들을
+    # 물고 있어 닫히지 않는다(실측: 설치 9단계까지 찍고 멈춤). 셸의 파일 리다이렉트를
+    # 쓰면 파이프가 없고, $LASTEXITCODE 로 종료 코드도 확실히 얻는다.
+    $o = Join-Path ([IO.Path]::GetTempPath()) ("hc-boot-" + [guid]::NewGuid().ToString("N") + ".out")
     $bootstrap = Join-Path $Root "win\bootstrap.ps1"
-    $procArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $bootstrap) + $CommandArgs
-    $sp = @{
-        FilePath = $psExe; ArgumentList = $procArgs
-        RedirectStandardOutput = $o; RedirectStandardError = $e
-        PassThru = $true
+    $inner = "`"$psExe`" -NoProfile -ExecutionPolicy Bypass -File `"$bootstrap`" " + ($CommandArgs -join " ")
+    if ($env:OS -eq "Windows_NT") {
+        & $env:ComSpec /d /s /c "$inner > `"$o`" 2>&1"
+    } else {
+        & /bin/sh -c "$inner > `"$o`" 2>&1"
     }
-    if ($env:OS -eq "Windows_NT") { $sp["WindowStyle"] = "Hidden" }
-    # -Wait 는 자식 트리(설치가 띄운 백그라운드 서버)까지 기다려 멈춘다. WaitForExit
-    # 는 이 프로세스(bootstrap)만 기다린다.
-    $p = Start-Process @sp
-    $p.WaitForExit()
-    Note "bootstrap exited $($p.ExitCode)"
-    $out = ""
-    if (Test-Path -LiteralPath $o) { $out += (Get-Content -LiteralPath $o -Raw) }
-    if (Test-Path -LiteralPath $e) { $out += (Get-Content -LiteralPath $e -Raw) }
-    Remove-Item -LiteralPath $o, $e -Force -ErrorAction SilentlyContinue
-    return @{ Out = $out; Code = $p.ExitCode }
+    $code = $LASTEXITCODE
+    Note "bootstrap $($CommandArgs -join ' ') exit $code"
+    $out = if (Test-Path -LiteralPath $o) { Get-Content -LiteralPath $o -Raw } else { "" }
+    Remove-Item -LiteralPath $o -Force -ErrorAction SilentlyContinue
+    return @{ Out = $out; Code = $code }
 }
 
 $failed = $false
@@ -164,5 +154,7 @@ try {
 } finally {
     if (-not $script:Keep) { Remove-Item -LiteralPath $Fake -Recurse -Force -ErrorAction SilentlyContinue }
 }
-if ($failed) { exit 1 }
-exit 0
+# exit 대신 [Environment]::Exit 로 즉시 종료한다. 설치가 띄운 백그라운드 서버가
+# 콘솔/핸들을 물고 있으면 exit 만으로는 프로세스가 끝나지 않을 수 있다(실측).
+if ($failed) { [Environment]::Exit(1) }
+[Environment]::Exit(0)
