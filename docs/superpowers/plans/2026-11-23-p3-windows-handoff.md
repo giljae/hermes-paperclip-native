@@ -4,6 +4,31 @@
 > `.superpowers/sdd/2026-11-23-p3-windows-support/progress.md` 에 있지만 **git 에
 > 커밋되지 않습니다**(scratch). 이 파일이 저장소에 남는 기록입니다.
 
+## ✅ 완료 (2026-11-25)
+
+**P3 는 끝났습니다.** Windows 실제 설치 스모크가 CI 에서 통과합니다(main, run 45654912113).
+macOS/Linux/Windows 실제 스모크 + 모든 유닛 테스트 통과.
+
+막혔던 지점과 수정(전부 커밋됨):
+
+1. **`initdb` 실패** — GitHub 러너의 `D:`(`RUNNER_TEMP`)에서 **이미 존재하는 디렉터리**일 때만 `chmod` 가
+   `EACCES` 로 실패. `C:` 에서는 (기존 디렉터리여도) 성공. 스모크 가짜 홈을 `LOCALAPPDATA`(C:)로 옮김.
+2. **PS 5.1 JSON 인자** — raw 는 따옴표가 벗겨지고(`Expected property name`), `\"` 는 공백에서 쪼개짐
+   (`too many arguments`). `Invoke-HcNative`(.NET `Process` + 수동 Windows 인용)로 교체.
+3. **`--dangerously-allow-all-scripts` 는 무관** — `@embedded-postgres/windows-x64` 의 postinstall 은
+   `pg-symlinks.json` 이 `[]` 라 no-op. 바이너리는 tarball 에 그대로 있었음.
+4. **스모크 hang** — 설치 출력을 PowerShell 파이프로 받으면 백그라운드 서버가 파이프 핸들을 물고 있어
+   닫히지 않음. 셸 파일 리다이렉트로 캡처(+UTF-8 로 읽기, `[Environment]::Exit` 로 종료).
+5. **제거 중단** — stale PID 에 `taskkill` 의 stderr 가 `$ErrorActionPreference=Stop` 때문에 종료 오류가
+   되어 제거가 실패. 호출 동안만 `Continue` 로 낮춤(실사용자 버그이기도 함).
+
+**남은 제약(중요):** GitHub 러너는 **승격된 관리자(High integrity)** 라 `postgres.exe` 가
+`Execution of PostgreSQL by a user with administrative permissions is not permitted` 로 기동을 거부합니다.
+그래서 CI 스모크는 승격으로 돌고 **서버/시드 검증만 건너뜁니다**(설치·멱등·업데이트·제거는 검증).
+실사용자는 기본 UAC(비승격)라 정상 동작하며, 설치기는 승격 감지 시 한국어로 경고합니다.
+서버 기동 자체는 비승격 환경(제한 토큰 `runas /trustlevel:0x20000`)에서 postgres 가 뜨는 것을 프로브로 확인했습니다.
+후속(선택): 설치기가 승격 환경에서 서버를 제한 토큰으로 자동 기동하면 CI 도 서버까지 검증할 수 있습니다.
+
 ## 지금 상태
 
 - **P3 Task 1~9 는 모두 구현·커밋·push 완료** (`main`).
