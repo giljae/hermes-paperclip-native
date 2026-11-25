@@ -122,11 +122,45 @@ jobs:
         shell: powershell
         run: $PSVersionTable | Out-String
       # 대상 런타임인 Windows PowerShell 5.1 로 실제 설치를 검증한다.
-      - name: 실제 설치 → 시드 → 멱등 → 업데이트 → 제거
+      #
+      # 러너는 승격된 관리자(High integrity)라 postgres.exe 가 기동을 거부한다.
+      # 그래서 스모크 전체를 제한 토큰(Basic User)으로 실행한다:
+      # runas /trustlevel:0x20000. 결과는 파일로 받아 폴링한다(runas 는 백그라운드
+      # 서버가 살아 있는 동안 -Wait 로 돌아오지 않는다).
+      - name: 실제 설치 → 시드 → 멱등 → 업데이트 → 제거 (제한 토큰)
         shell: powershell
-        env:
-          HC_SMOKE_REAL: "1"
-        run: ./tests/win/smoke.ps1
+        run: |
+          # ASCII only: Windows PowerShell 5.1 은 이 파일을 OEM 코드페이지로 읽어
+          # 비ASCII 가 있으면 파싱이 깨진다.
+          $smoke = Join-Path (Get-Location) "tests/win/smoke.ps1"
+          $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+          $log = Join-Path $env:RUNNER_TEMP "smoke-restricted.log"
+          $cmd = Join-Path $env:RUNNER_TEMP "smoke-restricted.cmd"
+          Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue
+          $lines = @(
+            "@echo off",
+            "set HC_SMOKE_REAL=1",
+            "`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$smoke`" > `"$log`" 2>&1",
+            "echo SMOKE_EXIT=%ERRORLEVEL% >> `"$log`""
+          ) -join "`r`n"
+          Set-Content -LiteralPath $cmd -Value $lines -Encoding ascii
+
+          Write-Host "launching smoke under a restricted token..."
+          Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", $cmd | Out-Null
+
+          $deadline = (Get-Date).AddMinutes(40)
+          $code = $null
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            if (Test-Path -LiteralPath $log) {
+              $c = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
+              if ($c -match "SMOKE_EXIT=(\d+)") { $code = [int]$Matches[1]; break }
+            }
+          }
+          if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log | ForEach-Object { Write-Host $_ } }
+          if ($null -eq $code) { Write-Host "restricted smoke did not finish in time" -ForegroundColor Red; exit 1 }
+          if ($code -ne 0) { Write-Host "restricted smoke exit: $code" -ForegroundColor Red; exit $code }
+          Write-Host "restricted smoke OK"
       - name: 실패 시 가짜 홈 업로드
         if: failure()
         uses: actions/upload-artifact@v4
