@@ -75,6 +75,16 @@ function Note {
 }
 function Step { param([string]$Name) Write-Host ""; Write-Host "=== $Name"; Note "STEP $Name" }
 
+# 승격된 관리자 토큰인가. 그 환경에서는 내장 Postgres 가 기동하지 않으므로 서버가
+# 필요한 검증만 건너뛴다.
+function Test-SmokeElevated {
+    if ($env:OS -ne "Windows_NT") { return $false }
+    try {
+        $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        return (New-Object System.Security.Principal.WindowsPrincipal($id)).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch { return $false }
+}
+
 # 현재 PowerShell 호스트와 같은 실행 파일을 쓴다(pwsh/powershell 혼동 방지).
 $psExe = "pwsh"
 try { $p = Get-Process -Id $PID; if ($p.Path) { $psExe = $p.Path } } catch { }
@@ -115,19 +125,25 @@ try {
     }
 
     Step "1b) 시드가 실제로 동작했는가"
-    $seedLog = Join-Path $env:HC_HOME "logs\seed.log"
-    if (Test-Path -LiteralPath $seedLog) {
-        if ((Get-Content -LiteralPath $seedLog -Raw) -match "Could not reach the Paperclip API") {
-            Fail "시드가 Paperclip 서버에 닿지 못했다 (서버가 뜨지 않음)"
-        }
-    }
     $cli = Join-Path $env:HC_HOME "bin\paperclipai.cmd"
     if (-not (Test-Path -LiteralPath $cli)) { Fail "paperclipai 를 찾지 못했다: $cli" }
-    $companies = (& $cli company list --json 2>$null | Out-String)
-    $cm = [regex]::Match($companies, '"id"\s*:\s*"([^"]*)"')
-    if (-not $cm.Success) { Fail "회사를 찾지 못했다" }
-    $agents = (& $cli agent list -C $cm.Groups[1].Value --json 2>$null | Out-String)
-    if ($agents -notmatch "hermes_local") { Fail "hermes_local 에이전트를 찾지 못했다" }
+    if (Test-SmokeElevated) {
+        # 승격된 관리자에서는 내장 Postgres 가 기동하지 않는다(CI 러너가 그렇다).
+        # 서버가 필요한 검증만 건너뛰고 설치/멱등/업데이트/제거는 계속한다.
+        Write-Host "      · 관리자 권한이라 서버/시드 검증을 건너뜁니다" -ForegroundColor Yellow
+    } else {
+        $seedLog = Join-Path $env:HC_HOME "logs\seed.log"
+        if (Test-Path -LiteralPath $seedLog) {
+            if ((Get-Content -LiteralPath $seedLog -Raw) -match "Could not reach the Paperclip API") {
+                Fail "시드가 Paperclip 서버에 닿지 못했다 (서버가 뜨지 않음)"
+            }
+        }
+        $companies = (& $cli company list --json 2>$null | Out-String)
+        $cm = [regex]::Match($companies, '"id"\s*:\s*"([^"]*)"')
+        if (-not $cm.Success) { Fail "회사를 찾지 못했다" }
+        $agents = (& $cli agent list -C $cm.Groups[1].Value --json 2>$null | Out-String)
+        if ($agents -notmatch "hermes_local") { Fail "hermes_local 에이전트를 찾지 못했다" }
+    }
 
     Step "2) 두 번째 설치가 멱등한가"
     $r = Invoke-Bootstrap @("install")
