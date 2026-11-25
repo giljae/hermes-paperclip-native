@@ -74,12 +74,28 @@ try { $p = Get-Process -Id $PID; if ($p.Path) { $psExe = $p.Path } } catch { }
 
 function Invoke-Bootstrap {
     param([string[]]$CommandArgs)
-    # 출력을 한 줄씩 즉시 내보낸다. 그렇지 않으면(Out-String) 설치가 오래 걸릴 때
-    # 진행 상황을 전혀 볼 수 없다(실측: 제한 토큰 실행에서 40분간 "=== 1) 설치"만 보였다).
-    $lines = New-Object System.Collections.ArrayList
-    & $psExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root "win\bootstrap.ps1") @CommandArgs 2>&1 |
-        ForEach-Object { [void]$lines.Add("$_"); Write-Host $_ }
-    return @{ Out = ($lines -join "`n"); Code = $LASTEXITCODE }
+    # 파이프(& ... | Out-String)로 받으면 안 된다: 설치가 띄운 백그라운드 서버가
+    # 부모의 stdout 핸들을 물고 있어 파이프가 닫히지 않고 스모크가 영원히 멈춘다
+    # (실측: 설치 9단계가 끝난 뒤 진행 없음). Start-Process 의 파일 리다이렉트는
+    # 파이프를 쓰지 않으므로 이 문제가 없다.
+    $dir = [IO.Path]::GetTempPath()
+    $tag = [guid]::NewGuid().ToString("N")
+    $o = Join-Path $dir "hc-boot-$tag.out"
+    $e = Join-Path $dir "hc-boot-$tag.err"
+    $bootstrap = Join-Path $Root "win\bootstrap.ps1"
+    $procArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $bootstrap) + $CommandArgs
+    $sp = @{
+        FilePath = $psExe; ArgumentList = $procArgs
+        RedirectStandardOutput = $o; RedirectStandardError = $e
+        Wait = $true; PassThru = $true
+    }
+    if ($env:OS -eq "Windows_NT") { $sp["WindowStyle"] = "Hidden" }
+    $p = Start-Process @sp
+    $out = ""
+    if (Test-Path -LiteralPath $o) { $out += (Get-Content -LiteralPath $o -Raw) }
+    if (Test-Path -LiteralPath $e) { $out += (Get-Content -LiteralPath $e -Raw) }
+    Remove-Item -LiteralPath $o, $e -Force -ErrorAction SilentlyContinue
+    return @{ Out = $out; Code = $p.ExitCode }
 }
 
 $failed = $false
