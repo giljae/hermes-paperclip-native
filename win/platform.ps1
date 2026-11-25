@@ -285,7 +285,14 @@ function Stop-HcServerBackground {
         if ($env:OS -eq "Windows_NT") {
             # 내장 Postgres 등 자식 프로세스까지 함께 끝낸다(안 그러면 데이터 폴더가
             # 잠겨 제거가 실패하고 포트도 계속 잡혀 있다).
-            & taskkill /T /F /PID $serverPid 2>$null | Out-Null
+            # taskkill 은 이미 죽은 PID 에 stderr 로 에러를 쓴다. bootstrap 이
+            # $ErrorActionPreference=Stop 이라 그 stderr 가 종료 오류가 되어 제거가
+            # 중단된다(실측: "The process ... not found" → SMOKE FAIL). 호출 동안만
+            # Continue 로 낮춘다.
+            $prev = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try { & taskkill /T /F /PID $serverPid 2>$null | Out-Null } catch { }
+            finally { $ErrorActionPreference = $prev }
         } else {
             try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
         }
