@@ -140,3 +140,87 @@ jobs:
           Write-Host ""
           Write-Host "=== PROBE B DONE ==="
           exit 0
+
+  # C) PostgreSQL 서버는 "관리자 토큰"에서 기동을 거부한다. GitHub 러너는
+  #    runneradmin(관리자)이라 embedded Postgres 가 뜨지 못한다.
+  #    - 현재 토큰이 정말 관리자인지 확인
+  #    - runas /trustlevel:0x20000 (제한 토큰) 로 de-elevate 가 되는지
+  #    - 제한 토큰에서 postgres 가 실제로 기동하는지
+  probe-pg-start:
+    name: PostgreSQL start under admin vs restricted token (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: who am i
+        shell: pwsh
+        run: |
+          whoami
+          Write-Host "--- groups (Administrators) ---"
+          whoami /groups | Select-String -Pattern "Administrators","Mandatory Label" | ForEach-Object { Write-Host $_ }
+          Write-Host "LOCALAPPDATA: $env:LOCALAPPDATA"
+
+      - name: download ep binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ep = Join-Path $env:RUNNER_TEMP "ep2"
+          Remove-Item -LiteralPath $ep -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $ep | Out-Null
+          Push-Location $ep
+          npm pack "@embedded-postgres/windows-x64@18.1.0-beta.16"
+          tar -xzf (Get-ChildItem -Filter *.tgz | Select-Object -First 1).FullName
+          Pop-Location
+          Write-Host "bin: $(Join-Path $ep 'package\native\bin')"
+
+      - name: "initdb on C: then try to start (admin vs restricted token)"
+        shell: pwsh
+        run: |
+          $bin   = Join-Path $env:RUNNER_TEMP "ep2\package\native\bin"
+          $initdb = Join-Path $bin "initdb.exe"
+          $pgctl  = Join-Path $bin "pg_ctl.exe"
+          $root   = Join-Path $env:LOCALAPPDATA "pgprobe"
+          $dir    = Join-Path $root "db"
+          $pglog  = Join-Path $root "pg.log"
+          Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $pw = Join-Path $root "pw.txt"
+          Set-Content -LiteralPath $pw -Value "paperclip" -Encoding ascii
+
+          Write-Host "=== initdb on C: ==="
+          & $initdb "--pgdata=$dir" "--auth=password" "--username=paperclip" "--pwfile=$pw" "--encoding=UTF8" "--locale=C" "--lc-messages=C" 2>&1 | Write-Host
+          Write-Host "initdb exit: $LASTEXITCODE"
+
+          Write-Host ""
+          Write-Host "=== attempt 1: pg_ctl start (current admin token) ==="
+          & $pgctl -D $dir -l $pglog -o "-p 54329" start 2>&1 | Write-Host
+          Write-Host "pg_ctl exit: $LASTEXITCODE"
+          if (Test-Path -LiteralPath $pglog) { Get-Content -LiteralPath $pglog -Tail 8 | ForEach-Object { Write-Host $_ } }
+          & $pgctl -D $dir stop -m fast 2>&1 | Write-Host
+
+          Write-Host ""
+          Write-Host "=== attempt 2: restricted token via runas /trustlevel:0x20000 ==="
+          $wrapper = Join-Path $root "start.cmd"
+          $out     = Join-Path $root "start.out"
+          $lines = @(
+            "@echo off",
+            "whoami /groups | findstr /i Administrators",
+            "`"$pgctl`" -D `"$dir`" -l `"$pglog`" -o `"-p 54329`" start",
+            "echo PGCTL_EXIT=%ERRORLEVEL%",
+            "timeout /t 4 /nobreak >nul",
+            "`"$pgctl`" -D `"$dir`" status",
+            "echo STATUS_EXIT=%ERRORLEVEL%"
+          ) -join "`r`n"
+          Set-Content -LiteralPath $wrapper -Value $lines -Encoding ascii
+          try {
+            $p = Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", $wrapper -Wait -PassThru
+            Write-Host "runas exit: $($p.ExitCode)"
+          } catch {
+            Write-Host "runas 실패: $($_.Exception.Message)"
+          }
+          if (Test-Path -LiteralPath $out) { Write-Host "--- wrapper output ---"; Get-Content -LiteralPath $out | ForEach-Object { Write-Host $_ } }
+          if (Test-Path -LiteralPath $pglog) { Write-Host "--- pg.log (tail) ---"; Get-Content -LiteralPath $pglog -Tail 20 | ForEach-Object { Write-Host $_ } }
+          & $pgctl -D $dir stop -m fast 2>&1 | Write-Host
+
+          Write-Host ""
+          Write-Host "=== PROBE C DONE ==="
+          exit 0
