@@ -26,7 +26,7 @@ irm https://github.com/giljae/hermes-paperclip-native/releases/latest/download/b
 macOS에서는 릴리스의 `HermesPaperclip-macOS.zip` 을 더블클릭하는 방법도 있지만,
 최신 macOS는 서명 없는 스크립트를 막습니다 — **한 줄 명령을 권장합니다.**
 
-설치 후 `AI연결` 을 실행해 모델을 연결하세요(Nous Portal 로그인 또는 직접 API 키).
+설치 후 `AI연결` 을 실행하면 **웹 설정 화면**(http://127.0.0.1:9119)이 브라우저에 열립니다. 거기서 모델·API 키를 연결하세요.
 
 자세한 안내: [macOS·Linux 사용 안내](entry/사용방법.html) · [Linux 설치](docs/linux.md) · [Windows 설치](docs/windows.md)
 

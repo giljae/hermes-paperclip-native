@@ -46,8 +46,8 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 관리용 파일은 더블클릭하면 됩니다. 각 파일은 `manifest.env` 에서 설치된 버전을 읽어
 앱 위치를 찾으므로, 업데이트 후에도 그대로 동작합니다.
 
-설치가 끝나면 `AI연결.cmd` 를 실행해 모델을 연결하세요(Nous Portal 로그인 또는 API 키).
-아래 한 줄로도 됩니다.
+설치가 끝나면 `AI연결.cmd` 를 실행하세요. **웹 설정 화면**(http://127.0.0.1:9119)이 브라우저에
+열리고, 거기서 모델·API 키를 연결합니다. 아래 한 줄로도 됩니다.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\hermes-paperclip-native\app\<버전>\win\commands.ps1" connect

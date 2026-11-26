@@ -28,7 +28,8 @@ root로 실행하면 거부합니다 — 설치한 것을 일반 사용자만 �
 | 관리 파일 | `~/HermesPaperclip/` (시작·중지·상태·AI연결·업데이트·제거) |
 | 대시보드 | `http://127.0.0.1:3100` (포트가 쓰이면 다른 포트) |
 
-설치가 끝나면 **AI 연결**을 실행하세요. `~/HermesPaperclip/AI연결` 또는:
+설치가 끝나면 **AI 연결**을 실행하세요. **웹 설정 화면**(http://127.0.0.1:9119)이 브라우저에
+열립니다(헤드리스면 URL만 출력). `~/HermesPaperclip/AI연결` 또는:
 
 ```bash
 curl -fsSL https://github.com/giljae/hermes-paperclip-native/releases/latest/download/bootstrap.sh | bash -s connect
