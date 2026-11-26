@@ -66,14 +66,7 @@ function Fail {
     $script:Keep = $true
     throw "SMOKE FAIL"
 }
-# 진행 상황을 파일로도 남긴다(CI 제한 토큰 실행에서 멈췄을 때 위치를 보기 위함).
-function Note {
-    param([string]$Text)
-    if ($env:HC_SMOKE_PROGRESS) {
-        try { Add-Content -LiteralPath $env:HC_SMOKE_PROGRESS -Value "$Text" -Encoding UTF8 } catch { }
-    }
-}
-function Step { param([string]$Name) Write-Host ""; Write-Host "=== $Name"; Note "STEP $Name" }
+function Step { param([string]$Name) Write-Host ""; Write-Host "=== $Name" }
 
 # 승격된 관리자 토큰인가. 그 환경에서는 내장 Postgres 가 기동하지 않으므로 서버가
 # 필요한 검증만 건너뛴다.
@@ -103,7 +96,6 @@ function Invoke-Bootstrap {
         & /bin/sh -c "$inner > `"$o`" 2>&1"
     }
     $code = $LASTEXITCODE
-    Note "bootstrap $($CommandArgs -join ' ') exit $code"
     $out = if (Test-Path -LiteralPath $o) { Get-Content -LiteralPath $o -Raw -Encoding UTF8 } else { "" }
     Remove-Item -LiteralPath $o -Force -ErrorAction SilentlyContinue
     return @{ Out = $out; Code = $code }
