@@ -5,17 +5,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/../core/lib.sh"
 . "$HERE/../core/ui.sh"
 . "$HERE/../core/manifest.sh"
-# 현재 플랫폼을 로드한다(OS 하드코딩 금지).
-. "$HERE/../core/lib.sh"
 hc_load_platform
 . "$HERE/../core/steps/70-seed.sh"
 . "$HERE/../core/steps/connect.sh"
 export HC_NO_COLOR=1
 
-t_menu_notty()  { connect_menu >/dev/null <<< ''; assert_eq "3" "$CONNECT_CHOICE" "비TTY 기본값은 3"; }
-t_portal_cmd()  { local out; out="$(HC_DRY_RUN=1 connect_run 1)"; assert_contains "$out" "hermes setup --portal" "포털 경로"; }
-t_key_cmd()     { local out; out="$(HC_DRY_RUN=1 connect_run 2)"; assert_contains "$out" "hermes setup" "내 키 경로"; }
-t_none_silent() { assert_status 0 "$(type -t connect_run >/dev/null 2>&1; echo $?)" "connect_run 이 정의되어 있다"; local out; out="$(HC_DRY_RUN=1 connect_run 3)"; assert_eq "" "$out" "나중에는 아무것도 안 한다"; }
-t_budget_skip() { local out; out="$(HC_DRY_RUN=1 connect_budget_prompt <<< '3' 2>&1)"; assert_contains "$out" "설정하지 않" "예산 건너뛰기 안내"; }
-t_budget_set()  { local out; out="$(HC_DRY_RUN=1 connect_budget_prompt <<< '1' 2>&1)"; assert_contains "$out" "3000" "권장 30달러 = 3000 센트"; }
-run_tests t_menu_notty t_portal_cmd t_key_cmd t_none_silent t_budget_skip t_budget_set
+t_dashboard_url()    { assert_eq "http://127.0.0.1:9119" "$(p_hermes_dashboard_url)" "대시보드 URL"; }
+t_dashboard_dryrun() { local out; out="$(HC_DRY_RUN=1 p_hermes_dashboard_start)"; assert_contains "$out" "hermes dashboard --no-open" "DRY_RUN 은 명령만 출력"; }
+t_connect_opens()    { local out; out="$(HC_DRY_RUN=1 HC_SKIP_OPEN=1 cmd_connect 2>&1)"; assert_contains "$out" "9119" "AI연결이 대시보드 URL 을 안내"; }
+t_connect_fallback() {
+  p_hermes_dashboard_start() { return 1; }
+  local out; out="$(HC_DRY_RUN=1 HC_SKIP_OPEN=1 cmd_connect 2>&1)"
+  assert_contains "$out" "hermes setup" "대시보드 실패 시 위저드로 폴백"
+}
+run_tests t_dashboard_url t_dashboard_dryrun t_connect_opens t_connect_fallback

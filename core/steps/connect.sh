@@ -1,27 +1,12 @@
 #!/usr/bin/env bash
-# AI 연결: 모델 설정, 연결 확인, 예산 제안.
+# AI 연결: Hermes 웹 대시보드(설정 화면)를 연다.
 #
-# 모델/프로바이더는 Hermes 에 위임한다(어댑터의 model 을 비워 둔다).
-# 가장 쉬운 길은 `hermes setup --portal`(Nous Portal OAuth) — API 키를 만들 필요가 없다.
+# 모델/프로바이더는 Hermes 에 위임한다(어댑터의 model 을 비워 둔다). 일반 사용자가
+# 터미널 위저드 대신 설정 화면(UI)에서 연결하도록, Hermes 대시보드의
+# /models·/config(API 키) 화면을 브라우저로 연다. 대시보드를 못 띄우면 터미널
+# 위저드로 폴백한다.
 
-HC_BUDGET_RECOMMENDED_CENTS=3000
-
-connect_menu() {
-  CONNECT_CHOICE="3"
-  printf '어떤 방법으로 AI를 연결할까요?\n\n'
-  printf '  1) Nous Portal로 간편 로그인 (추천 · API 키 불필요)\n'
-  printf '  2) 내 API 키 사용 (Anthropic / OpenAI / OpenRouter)\n'
-  printf '  3) 나중에 하기\n\n'
-
-  local ans
-  if read -r -p '번호를 입력하고 Enter (1/2/3): ' ans; then
-    case "$ans" in
-      1|2|3) CONNECT_CHOICE="$ans" ;;
-    esac
-  fi
-  return 0
-}
-
+# 폴백용 터미널 위저드. 1=Nous Portal, 2=내 API 키.
 connect_run() {
   local choice="$1" hermes
   hermes="$(p_bin_dir)/hermes"
@@ -33,73 +18,19 @@ connect_run() {
   return 0
 }
 
-connect_verify() {
-  [ -n "${HC_DRY_RUN:-}" ] && return 0
-  "$(p_bin_dir)/hermes" doctor >/dev/null 2>&1
-}
-
-connect_budget_set() {
-  local cents="$1" cid cli
-  cli="$(p_bin_dir)/paperclipai"
-  if [ -n "${HC_DRY_RUN:-}" ]; then
-    p_run "$cli" agent update "$HC_AGENT_NAME" --payload-json "{\"budgetMonthlyCents\":$cents}"
-  else
-    p_paperclip_env
-    cid="$(seed_company_id)"
-    "$cli" agent update "$HC_AGENT_NAME" -C "$cid" \
-      --payload-json "{\"budgetMonthlyCents\":$cents}" >/dev/null 2>&1 || true
-  fi
-  printf '월 예산을 %s 센트($%s)로 설정했습니다.\n' "$cents" "$((cents / 100))"
-  return 0
-}
-
-connect_budget_prompt() {
-  printf '\n지출 폭주를 막기 위해 월 예산을 걸어둘까요?\n'
-  printf 'Paperclip은 CEO에게 월 $30~50을 권장합니다.\n\n'
-  printf '  1) 월 $30으로 설정 (권장)\n'
-  printf '  2) 직접 입력\n'
-  printf '  3) 설정하지 않음\n\n'
-
-  local ans
-  if ! read -r ans; then
-    ans=3
-  fi
-
-  case "$ans" in
-    1)
-      connect_budget_set "$HC_BUDGET_RECOMMENDED_CENTS"
-      ;;
-    2)
-      local custom
-      if read -r -p '월 예산(달러): ' custom && [ -n "$custom" ]; then
-        case "$custom" in
-          *[!0-9]*) printf '숫자가 아니어서 예산을 설정하지 않았습니다.\n' ;;
-          *) connect_budget_set "$((custom * 100))" ;;
-        esac
-      else
-        printf '예산을 설정하지 않았습니다.\n'
-      fi
-      ;;
-    *)
-      printf '예산을 설정하지 않았습니다. 나중에 대시보드에서 정할 수 있습니다.\n'
-      ;;
-  esac
-  return 0
-}
-
 cmd_connect() {
-  connect_menu
-  connect_run "$CONNECT_CHOICE"
-
-  if [ "$CONNECT_CHOICE" != "3" ]; then
-    if connect_verify; then
-      printf '연결을 확인했습니다.\n'
-    else
-      printf '연결을 확인하지 못했습니다. 다시 실행해 주세요.\n'
+  local url
+  if p_hermes_dashboard_start; then
+    url="$(p_hermes_dashboard_url)"
+    printf 'AI 연결 화면: %s\n' "$url"
+    if [ -z "${HC_SKIP_OPEN:-}" ] && p_has_display; then
+      p_open_browser "$url" || ui_warn "브라우저를 자동으로 열지 못했습니다. 위 주소를 직접 열어 주세요."
     fi
+    ui_pause
+    return 0
   fi
-
-  connect_budget_prompt
+  ui_warn "AI 연결 화면을 열지 못했습니다. 터미널 설정으로 진행합니다."
+  connect_run 1 || true
   ui_pause
   return 0
 }

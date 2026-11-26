@@ -194,3 +194,31 @@ p_tail_log() {
   tail -n "$n" "$f"
 }
 
+# AI 연결 화면: Hermes 웹 대시보드. 모델/프로바이더는 Hermes 가 들고 있고, 그
+# 대시보드가 /models·/config(API 키) 화면을 제공한다(미리 빌드된 웹 자산).
+p_hermes_dashboard_url() { printf 'http://127.0.0.1:9119'; }
+
+p_hermes_dashboard_running() {
+  curl -fsS -m 2 "$(p_hermes_dashboard_url)" >/dev/null 2>&1
+}
+
+# 준비되면 0. HC_DRY_RUN 이면 명령만 출력하고 0(네트워크/프로세스 안 씀).
+p_hermes_dashboard_start() {
+  local i
+  if [ -n "${HC_DRY_RUN:-}" ]; then
+    printf '%s\n' "hermes dashboard --no-open"
+    return 0
+  fi
+  p_hermes_dashboard_running && return 0
+  mkdir -p "$(hc_log_dir)"
+  p_activate_tools
+  nohup "$(p_bin_dir)/hermes" dashboard --no-open >>"$(hc_log_dir)/hermes-dashboard.log" 2>&1 &
+  i=0
+  while [ "$i" -lt 30 ]; do
+    sleep 1
+    p_hermes_dashboard_running && return 0
+    i=$((i + 1))
+  done
+  return 1
+}
+
