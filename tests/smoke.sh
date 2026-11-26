@@ -53,6 +53,19 @@ out="$(HOME="$HOME" HC_SOURCE_DIR="$ROOT" HC_HOME="$HC_HOME" PAPERCLIP_HOME="$PA
        "$HOME/.local/bin/paperclipai" agent list --company-id "$(HOME="$HOME" PAPERCLIP_HOME="$PAPERCLIP_HOME" "$HOME/.local/bin/paperclipai" company list --json 2>/dev/null | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')" --json 2>&1)"
 printf '%s' "$out" | grep -q 'hermes_local' || fail "hermes_local 에이전트를 찾지 못했다"
 
+step "1c) AI 연결 화면이 뜨는가"
+# HC_SKIP_OPEN=1 이라 브라우저는 안 열고 URL만 출력한다.
+out="$(bash "$ROOT/entry/bootstrap.sh" connect 2>&1)" || fail "connect 가 실패했다"
+printf '%s' "$out" | grep -q '9119' || fail "connect 가 대시보드 주소를 안내하지 않았다"
+i=0; dashok=0
+while [ "$i" -lt 30 ]; do
+  curl -fsS -m 2 http://127.0.0.1:9119 >/dev/null 2>&1 && { dashok=1; break; }
+  sleep 1; i=$((i + 1))
+done
+[ "$dashok" = "1" ] || fail "Hermes 대시보드가 응답하지 않는다 (9119)"
+# 제거가 파일 잠금으로 실패하지 않도록 대시보드를 멈춘다.
+"$HOME/.local/bin/hermes" dashboard --stop >/dev/null 2>&1 || true
+
 step "2) 두 번째 설치가 멱등한가"
 out="$(bash "$ROOT/entry/bootstrap.sh" install 2>&1)" || fail "두 번째 설치가 실패했다"
 printf '%s' "$out" | grep -q '건너뜀' || fail "두 번째 설치가 단계를 건너뛰지 않았다"
