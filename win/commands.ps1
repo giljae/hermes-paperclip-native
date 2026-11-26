@@ -353,20 +353,18 @@ function Invoke-HcStatus {
 }
 
 function Invoke-HcConnect {
+    $url = Get-HcHermesDashboardUrl
+    if (Start-HcHermesDashboard) {
+        Write-Host "AI 연결 화면: $url"
+        if (-not $env:HC_SKIP_OPEN -and (Test-HcHasDisplay)) {
+            try { Open-HcBrowser $url } catch { Write-HcWarn "브라우저를 자동으로 열지 못했습니다. 위 주소를 직접 열어 주세요." }
+        }
+        return $true
+    }
+    Write-HcWarn "AI 연결 화면을 열지 못했습니다. 터미널 설정으로 진행합니다."
     $hermes = Join-Path (Get-HcBinDir) "hermes.exe"
     if (-not (Test-Path -LiteralPath $hermes)) { $hermes = "hermes" }
-    Write-Host "어떤 방법으로 AI를 연결할까요?"
-    Write-Host ""
-    Write-Host "  1) Nous Portal로 간편 로그인 (추천 · API 키 불필요)"
-    Write-Host "  2) 내 API 키 사용 (Anthropic / OpenAI / OpenRouter)"
-    Write-Host "  3) 나중에 하기"
-    Write-Host ""
-    $ans = Read-Host "번호를 입력하고 Enter (1/2/3)"
-    switch ($ans) {
-        "1" { Invoke-HcRun $hermes @("setup", "--portal") | Out-Null }
-        "2" { Invoke-HcRun $hermes @("setup") | Out-Null }
-        default { }
-    }
+    Invoke-HcRun $hermes @("setup") | Out-Null
     return $true
 }
 

@@ -46,6 +46,37 @@ function Test-HcElevated {
     } catch { return $false }
 }
 
+# AI 연결 화면: Hermes 웹 대시보드. 모델/프로바이더는 Hermes 가 들고 있고, 그
+# 대시보드가 /models·/config(API 키) 화면을 제공한다(미리 빌드된 웹 자산).
+function Get-HcHermesDashboardUrl { return "http://127.0.0.1:9119" }
+
+function Test-HcHermesDashboardRunning {
+    try {
+        $r = Invoke-WebRequest -Uri (Get-HcHermesDashboardUrl) -UseBasicParsing -TimeoutSec 2
+        return ($r.StatusCode -ge 200 -and $r.StatusCode -lt 400)
+    } catch { return $false }
+}
+
+# 준비되면 $true. HC_DRY_RUN 이면 명령만 출력하고 $true(프로세스 안 띄움).
+function Start-HcHermesDashboard {
+    if ($env:HC_DRY_RUN) {
+        Write-Host "hermes dashboard --no-open"
+        return $true
+    }
+    if (Test-HcHermesDashboardRunning) { return $true }
+    $hermes = Join-Path (Get-HcBinDir) "hermes.exe"
+    if (-not (Test-Path -LiteralPath $hermes)) { $hermes = "hermes" }
+    New-Item -ItemType Directory -Force -Path (Get-HcLogDir) | Out-Null
+    Start-Process -FilePath $hermes -ArgumentList "dashboard", "--no-open" -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path (Get-HcLogDir) "hermes-dashboard.log") `
+        -RedirectStandardError (Join-Path (Get-HcLogDir) "hermes-dashboard.err.log") | Out-Null
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-HcHermesDashboardRunning) { return $true }
+    }
+    return $false
+}
+
 # Node 공식 win-x64/win-arm64 zip. 압축을 풀면 node-v<ver>-win-<arch>\ 아래에 들어 있다.
 function Get-HcNodeArchiveUrl {
     param([string]$Version)

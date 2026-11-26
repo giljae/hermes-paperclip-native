@@ -122,5 +122,14 @@ $script:Tests = @(
         $tokens = $null; $errs = $null
         [void][System.Management.Automation.Language.Parser]::ParseInput($body, [ref]$tokens, [ref]$errs)
         Assert-True (($null -eq $errs) -or ($errs.Count -eq 0)) "래퍼 본문 파싱"
+    } },
+    @{ Name = "Hermes 대시보드 URL 은 9119"; Body = {
+        Assert-Equal "http://127.0.0.1:9119" (Get-HcHermesDashboardUrl) "URL"
+    } },
+    @{ Name = "DRY_RUN 에서 대시보드 시작은 부작용 없이 true"; Body = {
+        $env:HC_DRY_RUN = "1"
+        $ok = Start-HcHermesDashboard
+        Remove-Item Env:\HC_DRY_RUN -ErrorAction SilentlyContinue
+        Assert-True $ok "true 반환"
     } }
 )
