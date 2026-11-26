@@ -15,10 +15,10 @@ irm https://github.com/giljae/hermes-paperclip-native/releases/latest/download/b
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-> **중요: 관리자 권한으로 실행하지 마세요.** Paperclip 의 내장 PostgreSQL 은
-> 관리자 권한(승격된 토큰)에서 기동을 거부합니다. 관리자 PowerShell/터미널에서
-> 실행하면 설치는 끝나지만 대시보드의 서버가 뜨지 않습니다. 반드시 일반(비관리자)
-> PowerShell 창에서 실행하세요. 설치기는 관리자 권한을 감지하면 한국어로 알려 줍니다.
+> **관리자 권한에서도 동작합니다.** 설치기가 승격된 토큰을 감지하면 Paperclip 서버를
+> 제한 권한(Basic User)으로 실행합니다 — 내장 PostgreSQL 이 관리자 토큰에서 기동을
+> 거부하기 때문입니다. 다만 특별한 이유가 없으면 일반(비관리자) PowerShell 창에서
+> 실행하는 편이 가장 단순합니다.
 
 ## 지원 환경
 
@@ -101,5 +101,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\hermes-pa
 | 한글이 깨져 보임 | Windows PowerShell 5.1 + UTF-8 콘솔 문제입니다. 최신 설치기로 다시 실행하세요 |
 | 새 터미널에서 `hermes` 가 없음 | 사용자 PATH 확인 후 터미널을 새로 열기(설치기는 기존 PATH를 보존합니다) |
 | 서버가 안 뜸 | `%LOCALAPPDATA%\hermes-paperclip-native\logs\server.log` 확인 |
-| 관리자 권한으로 실행함 | 일반(비관리자) PowerShell 창에서 다시 실행하세요. 내장 PostgreSQL 은 관리자 권한에서 기동하지 않습니다 |
+| 관리자 권한으로 실행함 | 설치기가 서버를 제한 권한으로 대신 실행합니다. 문제가 있으면 일반(비관리자) 창에서 다시 실행하세요 |
 | 설치가 실패함 | `%LOCALAPPDATA%\hermes-paperclip-native\logs\install.log` 를 전달해 주세요 |
