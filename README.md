@@ -201,6 +201,11 @@ Windows 단위 테스트는 PowerShell 7 과 Windows PowerShell 5.1 양쪽에서
 gh workflow run CI --ref main
 ```
 
+## 기여
+
+버그·아이디어·PR 을 환영합니다. 규칙과 개발 방법은 [CONTRIBUTING.md](CONTRIBUTING.md) 를 보세요.
+보안 이슈는 [SECURITY.md](SECURITY.md) 대로 **비공개** 제보해 주세요.
+
 ## 라이선스
 
 Apache-2.0 ([LICENSE](LICENSE))
