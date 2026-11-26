@@ -1,0 +1,57 @@
+name: Probe Hermes dashboard (Windows)
+
+# 일회성 진단(수동). Windows 러너에서 `hermes dashboard` 가 실제로 뜨는지,
+# `hermes dashboard --stop` 이 돌아오는지 확인한다. (AI연결 UI 의 전제)
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-dash:
+    name: hermes dashboard on Windows
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: uv 설치
+        shell: pwsh
+        run: |
+          irm https://astral.sh/uv/install.ps1 | iex
+          $bin = Join-Path $env:USERPROFILE ".local\bin"
+          $env:Path = "$bin;$env:Path"
+          uv --version
+
+      - name: hermes 설치
+        shell: pwsh
+        run: |
+          $bin = Join-Path $env:USERPROFILE ".local\bin"
+          $env:Path = "$bin;$env:Path"
+          uv tool install "hermes-agent==0.19.0"
+          $hermes = Join-Path $bin "hermes.exe"
+          Write-Host "hermes: $hermes  exists=$((Test-Path -LiteralPath $hermes))"
+
+      - name: dashboard 기동/정지 진단
+        shell: pwsh
+        run: |
+          $bin = Join-Path $env:USERPROFILE ".local\bin"
+          $hermes = Join-Path $bin "hermes.exe"
+
+          Write-Host "=== 기동: hermes dashboard --no-open ==="
+          $p = Start-Process -FilePath $hermes -ArgumentList "dashboard", "--no-open" -WindowStyle Hidden -PassThru
+          Write-Host "started pid=$($p.Id)"
+          $up = $false; $sw = [Diagnostics.Stopwatch]::StartNew()
+          for ($i = 0; $i -lt 90; $i++) {
+            try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:9119" -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $up = $true; break } } catch { }
+            Start-Sleep -Seconds 1
+          }
+          Write-Host "dashboard up=$up after $([int]$sw.Elapsed.TotalSeconds)s"
+
+          Write-Host "=== 정지: hermes dashboard --stop (20s 타임아웃) ==="
+          $sp = Start-Process -FilePath $hermes -ArgumentList "dashboard", "--stop" -WindowStyle Hidden -PassThru
+          $returned = $sp.WaitForExit(20000)
+          Write-Host "stop returned=$returned exit=$($sp.ExitCode)"
+          if (-not $returned) { Write-Host "==> dashboard --stop HANGS (>20s)"; Stop-Process -Id $sp.Id -Force -ErrorAction SilentlyContinue }
+
+          Write-Host "=== 남은 프로세스 ==="
+          Get-Process | Where-Object { $_.ProcessName -match "hermes|python|node" } | Select-Object Id, ProcessName | Format-Table | Out-String | Write-Host
+
+          Write-Host "=== PROBE DONE ==="
+          exit 0
