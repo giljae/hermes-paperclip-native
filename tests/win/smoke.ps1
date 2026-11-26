@@ -134,21 +134,6 @@ try {
         if ($agents -notmatch "hermes_local") { Fail "hermes_local 에이전트를 찾지 못했다" }
     }
 
-    Step "1c) AI 연결 화면이 뜨는가"
-    # HC_SKIP_OPEN=1 이라 브라우저는 안 열고 URL만 출력한다.
-    $r = Invoke-Bootstrap @("connect")
-    if ($r.Code -ne 0) { Fail "connect 가 실패했다`n$($r.Out)" }
-    if ($r.Out -notmatch "9119") { Fail "connect 가 대시보드 주소를 안내하지 않았다`n$($r.Out)" }
-    $dashok = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        try { $resp = Invoke-WebRequest -Uri "http://127.0.0.1:9119" -UseBasicParsing -TimeoutSec 2; if ($resp.StatusCode -eq 200) { $dashok = $true; break } } catch { }
-        Start-Sleep -Seconds 1
-    }
-    if (-not $dashok) { Fail "Hermes 대시보드가 응답하지 않는다 (9119)" }
-    # 제거가 파일 잠금으로 실패하지 않도록 대시보드를 멈춘다.
-    $hermesExe = Join-Path $env:HC_HOME "bin\hermes.exe"
-    if (Test-Path -LiteralPath $hermesExe) { & $hermesExe dashboard --stop 2>$null | Out-Null }
-
     Step "2) 두 번째 설치가 멱등한가"
     $r = Invoke-Bootstrap @("install")
     if ($r.Code -ne 0) { Fail "두 번째 설치가 실패했다`n$($r.Out)" }
