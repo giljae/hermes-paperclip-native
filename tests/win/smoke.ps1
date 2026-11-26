@@ -43,7 +43,7 @@ function Fail {
     Write-Host "SMOKE FAIL: $Message" -ForegroundColor Red
     # 실패 원인을 CI 로그에서 바로 볼 수 있게 로그 꼬리를 출력한다(아티팩트는
     # 숨김 파일 제외 등으로 누락될 수 있다).
-    foreach ($name in @("install.log", "onboard.log", "onboard.log.err", "seed.log", "server.log", "server.err.log", "paperclip.log")) {
+    foreach ($name in @("install.log", "onboard.log", "onboard.log.err", "seed.log", "server.log", "server.err.log", "paperclip.log", "hermes-dashboard.log")) {
         $p = Join-Path $env:HC_HOME "logs\$name"
         if (Test-Path -LiteralPath $p) {
             Write-Host "--- $name (tail) ---" -ForegroundColor Yellow
@@ -133,6 +133,24 @@ try {
         $agents = (& $cli agent list -C $cm.Groups[1].Value --json 2>$null | Out-String)
         if ($agents -notmatch "hermes_local") { Fail "hermes_local 에이전트를 찾지 못했다" }
     }
+
+    Step "1c) AI 연결 화면이 뜨는가"
+    # connect(bootstrap) 를 cmd 캡처로 돌리면, 남는 대시보드 프로세스 때문에 hang 한다
+    # (실측). 핵심인 Start-HcHermesDashboard 를 직접 호출해 검증한다.
+    . (Join-Path $Root "win\platform.ps1")
+    if (-not (Start-HcHermesDashboard)) { Fail "Hermes 대시보드를 띄우지 못했다" }
+    $dashok = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        try { $r = Invoke-WebRequest -Uri (Get-HcHermesDashboardUrl) -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $dashok = $true; break } } catch { }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $dashok) { Fail "Hermes 대시보드가 응답하지 않는다 (9119)" }
+    # 제거가 파일 잠금으로 실패하지 않도록 9119 를 잡고 있는 프로세스 트리를 정리한다
+    # (--stop 은 프로세스를 완전히 안 죽인다 — 실측).
+    Get-NetTCPConnection -LocalPort 9119 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+        & taskkill /T /F /PID $_.OwningProcess 2>$null | Out-Null
+    }
+    Start-Sleep -Seconds 2
 
     Step "2) 두 번째 설치가 멱등한가"
     $r = Invoke-Bootstrap @("install")
