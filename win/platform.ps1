@@ -282,9 +282,13 @@ function Start-HcProcessRestricted {
     $wrapper = Join-Path $dir "server-$tag.ps1"
     $body = New-HcRestrictedWrapper -Node $Node -Entry $Entry -Arguments $Arguments -OutLog $OutLog -ErrLog $ErrLog -PidFile $pidFile
     Set-Content -LiteralPath $wrapper -Value $body -Encoding UTF8
+    # runas 에는 인자 없는 .cmd 하나만 넘긴다(runas 의 명령줄 파싱 문제를 피한다).
+    $wrapperOut = Join-Path $dir "server-$tag.out"
+    $launcher = Join-Path $dir "server-$tag.cmd"
     $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-    $cmdLine = "`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$wrapper`""
-    Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", $cmdLine | Out-Null
+    $launcherBody = "@echo off`r`n`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$wrapper`" > `"$wrapperOut`" 2>&1`r`n"
+    Set-Content -LiteralPath $launcher -Value $launcherBody -Encoding OEM
+    Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", "`"$launcher`"" | Out-Null
 
     $nodePid = 0
     for ($i = 0; $i -lt 60; $i++) {
@@ -293,6 +297,11 @@ function Start-HcProcessRestricted {
             $raw = (Get-Content -LiteralPath $pidFile -Raw).Trim()
             if ([int]::TryParse($raw, [ref]$nodePid)) { break }
         }
+    }
+    if ($nodePid -le 0 -and (Test-Path -LiteralPath $wrapperOut)) {
+        # 진단: 제한 토큰 실행이 실패했을 때 이유를 install.log 에 남긴다.
+        $msg = Get-Content -LiteralPath $wrapperOut -Raw -Encoding UTF8
+        if ($msg) { Add-Content -LiteralPath (Get-HcLogFile) -Value "[restricted server launch] $msg" -Encoding UTF8 }
     }
     $o = New-Object psobject
     Add-Member -InputObject $o -MemberType NoteProperty -Name Id -Value $nodePid
