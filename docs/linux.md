@@ -38,9 +38,14 @@ curl -fsSL https://github.com/giljae/hermes-paperclip-native/releases/latest/dow
 ## 서버(헤드리스)에서
 
 GUI가 없으면 브라우저를 열지 않고 **주소만 출력**합니다. 그 주소를 다른 컴퓨터의
-브라우저에서 열려면 SSH 터널을 쓰세요:
+브라우저에서 열려면 SSH 터널을 쓰세요(AI 연결 화면은 9119, Paperclip 대시보드는 3100):
 
 ```bash
+# AI 연결(Hermes 설정 화면)
+ssh -L 9119:127.0.0.1:9119 사용자@서버
+# 그 뒤 내 컴퓨터에서 http://127.0.0.1:9119
+
+# Paperclip 대시보드
 ssh -L 3100:127.0.0.1:3100 사용자@서버
 # 그 뒤 내 컴퓨터에서 http://127.0.0.1:3100
 ```
