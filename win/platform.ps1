@@ -352,6 +352,13 @@ function Stop-HcServerBackground {
             $ErrorActionPreference = "Continue"
             try { & taskkill /T /F /PID $serverPid 2>$null | Out-Null } catch { }
             finally { $ErrorActionPreference = $prev }
+            # taskkill 은 비동기다. 프로세스(과 자식)가 실제로 죽어 파일 잠금이 풀릴
+            # 때까지 잠깐 기다린다. 안 그러면 제거가 일부 파일을 못 지우고
+            # 설치 상태가 남는다(실측: 제거 후 HC_HOME 잔존).
+            for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Milliseconds 500
+                if ($null -eq (Get-Process -Id $serverPid -ErrorAction SilentlyContinue)) { break }
+            }
         } else {
             try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
         }

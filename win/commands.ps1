@@ -389,7 +389,12 @@ function Remove-HcTree {
             try { $_.Attributes = 'Normal' } catch { }
         }
     } catch { }
-    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    # 방금 죽은 서버가 파일 핸들을 놓는 데 잠깐 걸릴 수 있다(제거 시 잔존 방지).
+    for ($i = 0; $i -lt 5; $i++) {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $Path)) { return }
+        Start-Sleep -Milliseconds 1000
+    }
 }
 
 function Invoke-HcUninstall {
