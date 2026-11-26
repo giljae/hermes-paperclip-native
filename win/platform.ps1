@@ -244,6 +244,9 @@ function Start-HcPaperclipProcess {
     $node = Join-Path (Get-HcNodeDir) "node.exe"
     $entry = Get-HcPaperclipEntry
     if ((Test-Path -LiteralPath $node) -and (Test-Path -LiteralPath $entry)) {
+        if (Test-HcElevated) {
+            return (Start-HcProcessRestricted -Node $node -Entry $entry -Arguments $Arguments -OutLog $OutLog -ErrLog $ErrLog)
+        }
         return (Start-Process -FilePath $node -ArgumentList "`"$entry`" $Arguments" `
             -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -PassThru)
     }
@@ -251,6 +254,53 @@ function Start-HcPaperclipProcess {
     if (-not (Test-Path -LiteralPath $exe)) { $exe = "paperclipai" }
     return (Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$exe`" $Arguments" `
         -WindowStyle Hidden -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog -PassThru)
+}
+
+# 제한 토큰으로 서버를 띄우는 래퍼 스크립트 본문을 만든다(순수 함수 — 단위 테스트).
+# 래퍼는 제한 토큰에서 실행되며 실제 프로세스를 Start-Process 로 띄우고 PID 를 적는다.
+function New-HcRestrictedWrapper {
+    param([string]$Node, [string]$Entry, [string]$Arguments, [string]$OutLog, [string]$ErrLog, [string]$PidFile)
+    $single = { param([string]$s) "'" + ($s -replace "'", "''") + "'" }
+    $argList = '"' + $Entry + '" ' + $Arguments
+    return ("`$p = Start-Process -FilePath " + (& $single $Node) + `
+        " -ArgumentList " + (& $single $argList) + `
+        " -WindowStyle Hidden -RedirectStandardOutput " + (& $single $OutLog) + `
+        " -RedirectStandardError " + (& $single $ErrLog) + " -PassThru`r`n" + `
+        "Set-Content -LiteralPath " + (& $single $PidFile) + " -Value `$p.Id -Encoding ascii`r`n")
+}
+
+# 승격된 관리자 토큰에서는 내장 Postgres(postgres.exe)가 기동하지 않는다. 그래서
+# 서버를 제한 토큰(Basic User)으로 띄운다: runas /trustlevel:0x20000 으로 래퍼를
+# 실행하고, 래퍼가 쓴 node PID 를 읽는다. 반환 객체는 Start-Process 결과처럼
+# .Id / .HasExited 를 제공한다.
+function Start-HcProcessRestricted {
+    param([string]$Node, [string]$Entry, [string]$Arguments, [string]$OutLog, [string]$ErrLog)
+    $dir = Get-HcLogDir
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $tag = [guid]::NewGuid().ToString("N")
+    $pidFile = Join-Path $dir "server-$tag.pid"
+    $wrapper = Join-Path $dir "server-$tag.ps1"
+    $body = New-HcRestrictedWrapper -Node $Node -Entry $Entry -Arguments $Arguments -OutLog $OutLog -ErrLog $ErrLog -PidFile $pidFile
+    Set-Content -LiteralPath $wrapper -Value $body -Encoding UTF8
+    $ps = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $cmdLine = "`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$wrapper`""
+    Start-Process -FilePath "runas" -ArgumentList "/trustlevel:0x20000", $cmdLine | Out-Null
+
+    $nodePid = 0
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Milliseconds 500
+        if (Test-Path -LiteralPath $pidFile) {
+            $raw = (Get-Content -LiteralPath $pidFile -Raw).Trim()
+            if ([int]::TryParse($raw, [ref]$nodePid)) { break }
+        }
+    }
+    $o = New-Object psobject
+    Add-Member -InputObject $o -MemberType NoteProperty -Name Id -Value $nodePid
+    Add-Member -InputObject $o -MemberType ScriptProperty -Name HasExited -Value {
+        if ($this.Id -le 0) { return $true }
+        try { return ($null -eq (Get-Process -Id $this.Id -ErrorAction Stop)) } catch { return $true }
+    }
+    return $o
 }
 
 function Test-HcServerRunning {

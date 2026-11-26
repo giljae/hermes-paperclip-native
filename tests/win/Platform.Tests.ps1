@@ -112,5 +112,15 @@ $script:Tests = @(
     } },
     @{ Name = "승격 감지는 예외 없이 bool 을 돌려준다"; Body = {
         Assert-True ((Test-HcElevated) -is [bool]) "bool 반환"
+    } },
+    @{ Name = "제한 토큰 래퍼는 경로를 안전하게 인용하고 파싱된다"; Body = {
+        $body = New-HcRestrictedWrapper -Node "C:\Program Files\node\node.exe" -Entry "C:\Users\김 철수\app\index.js" `
+            -Arguments "run" -OutLog "C:\out.log" -ErrLog "C:\err.log" -PidFile "C:\state\server.pid"
+        Assert-Contains $body "Start-Process" "Start-Process 사용"
+        Assert-Contains $body "C:\Users\김 철수\app\index.js" "엔트리 경로 포함"
+        Assert-Contains $body "server.pid" "pid 파일 기록"
+        $tokens = $null; $errs = $null
+        [void][System.Management.Automation.Language.Parser]::ParseInput($body, [ref]$tokens, [ref]$errs)
+        Assert-True (($null -eq $errs) -or ($errs.Count -eq 0)) "래퍼 본문 파싱"
     } }
 )

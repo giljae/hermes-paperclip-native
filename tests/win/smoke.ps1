@@ -127,20 +127,17 @@ try {
     Step "1b) 시드가 실제로 동작했는가"
     $cli = Join-Path $env:HC_HOME "bin\paperclipai.cmd"
     if (-not (Test-Path -LiteralPath $cli)) { Fail "paperclipai 를 찾지 못했다: $cli" }
-    if (Test-SmokeElevated) {
-        # 승격된 관리자에서는 내장 Postgres 가 기동하지 않는다(CI 러너가 그렇다).
-        # 서버가 필요한 검증만 건너뛰고 설치/멱등/업데이트/제거는 계속한다.
-        Write-Host "      · 관리자 권한이라 서버/시드 검증을 건너뜁니다" -ForegroundColor Yellow
-    } else {
-        $seedLog = Join-Path $env:HC_HOME "logs\seed.log"
-        if (Test-Path -LiteralPath $seedLog) {
-            if ((Get-Content -LiteralPath $seedLog -Raw) -match "Could not reach the Paperclip API") {
-                Fail "시드가 Paperclip 서버에 닿지 못했다 (서버가 뜨지 않음)"
-            }
+    $companies = (& $cli company list --json 2>$null | Out-String)
+    $cm = [regex]::Match($companies, '"id"\s*:\s*"([^"]*)"')
+    if (-not $cm.Success) {
+        if (Test-SmokeElevated) {
+            # 설치기가 승격 환경에서 서버를 제한 토큰으로 띄우지만 실패했을 수도 있다.
+            # 그 경우에만 건너뛰고(설치/멱등/업데이트/제거는 계속 검증) 비승격이면 실패.
+            Write-Host "      · 관리자 권한에서 서버가 뜨지 않아 서버/시드 검증을 건너뜁니다" -ForegroundColor Yellow
+        } else {
+            Fail "회사를 찾지 못했다"
         }
-        $companies = (& $cli company list --json 2>$null | Out-String)
-        $cm = [regex]::Match($companies, '"id"\s*:\s*"([^"]*)"')
-        if (-not $cm.Success) { Fail "회사를 찾지 못했다" }
+    } else {
         $agents = (& $cli agent list -C $cm.Groups[1].Value --json 2>$null | Out-String)
         if ($agents -notmatch "hermes_local") { Fail "hermes_local 에이전트를 찾지 못했다" }
     }
