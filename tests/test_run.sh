@@ -4,6 +4,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/helpers.sh"
 . "$HERE/../core/lib.sh"
 . "$HERE/../core/ui.sh"
+. "$HERE/../core/manifest.sh"
 . "$HERE/../core/run.sh"
 export HC_HOME="$(mktemp -d)" HC_NO_COLOR=1
 
@@ -20,4 +21,13 @@ t_install_propagates_failure() {
   cmd_install >/dev/null 2>&1
   assert_status 1 $? "단계 실패가 설치 실패로 전파된다"
 }
-run_tests t_step_ok t_step_hard t_step_soft t_unknown t_steps_list t_install_propagates_failure
+t_install_sets_version() {
+  # 새 설치도 INSTALLER_VERSION 을 남겨야 한다(제어 파일이 이 값으로 앱을 찾는다).
+  local s
+  for s in step_preflight step_node step_paperclip step_hermes step_onboard step_autostart step_seed step_shortcuts step_open; do
+    eval "$s() { return 0; }"
+  done
+  HC_HOME="$HC_HOME" cmd_install >/dev/null 2>&1
+  assert_eq "$(hc_version)" "$(HC_HOME="$HC_HOME" mf_get INSTALLER_VERSION)" "새 설치가 INSTALLER_VERSION 을 기록한다"
+}
+run_tests t_step_ok t_step_hard t_step_soft t_unknown t_steps_list t_install_propagates_failure t_install_sets_version

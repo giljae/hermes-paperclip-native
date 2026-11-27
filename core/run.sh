@@ -54,6 +54,9 @@ hc_load_core() {
 
 cmd_install() {
   local total n fn label soft
+  # 제어 파일(75-shortcuts)이 이 값으로 앱 디렉토리를 찾는다. 업데이트만 설정하던
+  # 것을 신규 설치에서도 기록한다(없으면 app//core/run.sh 로 깨진다).
+  mf_set INSTALLER_VERSION "$(hc_version)"
   total="$(hc_install_steps | grep -c '|')"
   hc_install_steps | while IFS='|' read -r n fn label soft; do
     [ -n "$n" ] || continue
