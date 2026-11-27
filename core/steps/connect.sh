@@ -29,8 +29,15 @@ cmd_connect() {
     ui_pause
     return 0
   fi
-  ui_warn "AI 연결 화면을 열지 못했습니다. 터미널 설정으로 진행합니다."
-  connect_run 1 || true
+  ui_warn "AI 연결 화면을 열지 못했습니다."
+  # 대화형 위저드(hermes setup)는 TTY 가 아니면 입력을 기다리며 멈출 수 있다. 그래서
+  # DRY_RUN(명령만 출력) 이거나 TTY 일 때만 실행하고, 아니면 건너뛴다.
+  if [ -n "${HC_DRY_RUN:-}" ] || [ -t 0 ]; then
+    printf '터미널 설정으로 진행합니다.\n'
+    connect_run 1 || true
+  else
+    printf '대화형 터미널이 아니라 자동 설정을 건너뜁니다. 대화형 터미널에서 AI연결을 다시 실행해 주세요.\n'
+  fi
   ui_pause
   return 0
 }

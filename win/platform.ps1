@@ -46,6 +46,11 @@ function Test-HcElevated {
     } catch { return $false }
 }
 
+# 대화형 입력이 가능한가(대화형 위저드를 띄워도 되는가). stdin 이 리다이렉트되면 false.
+function Test-HcInteractive {
+    try { return (-not [Console]::IsInputRedirected) } catch { return $false }
+}
+
 # AI 연결 화면: Hermes 웹 대시보드. 모델/프로바이더는 Hermes 가 들고 있고, 그
 # 대시보드가 /models·/config(API 키) 화면을 제공한다(미리 빌드된 웹 자산).
 function Get-HcHermesDashboardUrl { return "http://127.0.0.1:9119" }

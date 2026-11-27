@@ -131,5 +131,8 @@ $script:Tests = @(
         $ok = Start-HcHermesDashboard
         Remove-Item Env:\HC_DRY_RUN -ErrorAction SilentlyContinue
         Assert-True $ok "true 반환"
+    } },
+    @{ Name = "대화형 여부를 bool 로 돌려준다"; Body = {
+        Assert-True ((Test-HcInteractive) -is [bool]) "bool 반환"
     } }
 )

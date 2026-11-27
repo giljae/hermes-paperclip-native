@@ -361,10 +361,17 @@ function Invoke-HcConnect {
         }
         return $true
     }
-    Write-HcWarn "AI 연결 화면을 열지 못했습니다. 터미널 설정으로 진행합니다."
-    $hermes = Join-Path (Get-HcBinDir) "hermes.exe"
-    if (-not (Test-Path -LiteralPath $hermes)) { $hermes = "hermes" }
-    Invoke-HcRun $hermes @("setup") | Out-Null
+    Write-HcWarn "AI 연결 화면을 열지 못했습니다."
+    # 대화형 위저드(hermes setup)는 stdin 이 리다이렉트되면 입력을 기다리며 멈출 수
+    # 있다. 그래서 DRY_RUN(명령만 출력) 이거나 대화형일 때만 실행한다.
+    if ($env:HC_DRY_RUN -or (Test-HcInteractive)) {
+        Write-Host "      터미널 설정으로 진행합니다."
+        $hermes = Join-Path (Get-HcBinDir) "hermes.exe"
+        if (-not (Test-Path -LiteralPath $hermes)) { $hermes = "hermes" }
+        Invoke-HcRun $hermes @("setup") | Out-Null
+    } else {
+        Write-Host "      · 대화형 터미널이 아니라 자동 설정을 건너뜁니다. 대화형 터미널에서 AI연결을 다시 실행해 주세요."
+    }
     return $true
 }
 

@@ -18,4 +18,13 @@ t_connect_fallback() {
   local out; out="$(HC_DRY_RUN=1 HC_SKIP_OPEN=1 cmd_connect 2>&1)"
   assert_contains "$out" "hermes setup" "대시보드 실패 시 위저드로 폴백"
 }
-run_tests t_dashboard_url t_dashboard_dryrun t_connect_opens t_connect_fallback
+t_connect_fallback_notty() {
+  # 비TTY 면 대화형 위저드를 실행하지 않는다(입력을 기다리며 멈춤 방지).
+  p_hermes_dashboard_start() { return 1; }
+  connect_run() { echo "WIZARD-CALLED"; }
+  local out; out="$(HC_SKIP_OPEN=1 cmd_connect < /dev/null 2>&1)"
+  assert_contains "$out" "건너뜁니다" "비TTY 에서 건너뜀 안내"
+  local wiz=0; case "$out" in *WIZARD-CALLED*) wiz=1 ;; esac
+  assert_eq "0" "$wiz" "비TTY 에서 대화형 위저드를 호출하지 않는다"
+}
+run_tests t_dashboard_url t_dashboard_dryrun t_connect_opens t_connect_fallback t_connect_fallback_notty
