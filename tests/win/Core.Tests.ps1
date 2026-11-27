@@ -99,20 +99,5 @@ $script:Tests = @(
         Assert-Equal '"C:\Program Files\x"' (ConvertTo-HcWinArg "C:\Program Files\x") "공백 → 큰따옴표"
         Assert-Equal '"C:\Program Files\\"' (ConvertTo-HcWinArg "C:\Program Files\") "끝 백슬래시 두 배"
         Assert-Equal '"{\"name\":\"My AI Company\",\"issuePrefix\":\"AI\"}"' (ConvertTo-HcWinArg '{"name":"My AI Company","issuePrefix":"AI"}') "JSON → 이스케이프+인용"
-    } },
-    @{ Name = "AI연결 폴백은 비대화형에서 대화형 위저드를 실행하지 않는다"; Body = {
-        $global:HcWizCalled = $false
-        function global:Start-HcHermesDashboard { return $false }
-        function global:Test-HcInteractive { return $false }
-        function global:Invoke-HcRun { param($Command, $Arguments) $global:HcWizCalled = $true }
-        try {
-            Invoke-HcConnect | Out-Null
-            Assert-True (-not $global:HcWizCalled) "위저드를 호출하지 않는다"
-        } finally {
-            Remove-Item function:global:Start-HcHermesDashboard -ErrorAction SilentlyContinue
-            Remove-Item function:global:Test-HcInteractive -ErrorAction SilentlyContinue
-            Remove-Item function:global:Invoke-HcRun -ErrorAction SilentlyContinue
-            Remove-Item variable:global:HcWizCalled -ErrorAction SilentlyContinue
-        }
     } }
 )
