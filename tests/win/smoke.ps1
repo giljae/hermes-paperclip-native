@@ -145,8 +145,10 @@ try {
         Start-Sleep -Seconds 1
     }
     if (-not $dashok) { Fail "Hermes 대시보드가 응답하지 않는다 (9119)" }
-    # 제거가 파일 잠금으로 실패하지 않도록 9119 를 잡고 있는 프로세스 트리를 정리한다
-    # (--stop 은 프로세스를 완전히 안 죽인다 — 실측).
+    # 제거가 파일 잠금으로 실패하지 않도록 대시보드 프로세스를 정리한다. --stop 은
+    # 프로세스를 완전히 안 죽이고(실측), 9119 를 잡은 python 의 부모(hermes.exe)가 남으면
+    # bin\hermes.exe 가 잠긴다. 이미지 이름으로 트리째 죽이고, 안전망으로 포트도 정리한다.
+    & taskkill /IM hermes.exe /T /F 2>$null | Out-Null
     Get-NetTCPConnection -LocalPort 9119 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
         & taskkill /T /F /PID $_.OwningProcess 2>$null | Out-Null
     }

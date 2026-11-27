@@ -395,7 +395,9 @@ function Remove-HcTree {
         }
     } catch { }
     # 방금 죽은 서버가 파일 핸들을 놓는 데 잠깐 걸릴 수 있다(제거 시 잔존 방지).
-    for ($i = 0; $i -lt 5; $i++) {
+    # Windows 러너에서 간헐적으로 '제거 후에도 설치 상태가 남는' flake 가 있어
+    # 재시도 창을 넉넉히 둔다.
+    for ($i = 0; $i -lt 10; $i++) {
         Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
         if (-not (Test-Path -LiteralPath $Path)) { return }
         Start-Sleep -Milliseconds 1000
