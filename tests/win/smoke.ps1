@@ -169,7 +169,17 @@ try {
     $r = Invoke-Bootstrap @("uninstall", "--yes")
     if ($r.Code -ne 0) { Fail "제거가 실패했다`n$($r.Out)" }
     if (Test-Path -LiteralPath $env:PAPERCLIP_HOME) { Fail "제거 후에도 Paperclip 데이터가 남아 있다" }
-    if (Test-Path -LiteralPath $env:HC_HOME) { Fail "제거 후에도 설치 상태가 남아 있다" }
+    if (Test-Path -LiteralPath $env:HC_HOME) {
+        # 진단: 무엇이(그리고 어느 프로세스가 잡고) 남았는지 기록한다.
+        Write-Host "--- HC_HOME 에 남은 항목 ---" -ForegroundColor Yellow
+        Get-ChildItem -LiteralPath $env:HC_HOME -Force -Recurse -Depth 2 -ErrorAction SilentlyContinue |
+            Select-Object -First 40 -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
+        Write-Host "--- 관련 프로세스 ---" -ForegroundColor Yellow
+        Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.ProcessName -match 'node|postgres|hermes|python' } |
+            Select-Object Id, ProcessName | Format-Table | Out-String | ForEach-Object { Write-Host $_ }
+        Fail "제거 후에도 설치 상태가 남아 있다"
+    }
 
     Write-Host ""
     Write-Host "SMOKE OK"
