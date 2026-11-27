@@ -32,4 +32,17 @@ t_forwards_all_args() {
     assert_eq "ok" "ok" "--yes 가 step_uninstall 까지 전달된다"
   fi
 }
-run_tests t_source_dir t_release_plan t_forwards_all_args
+t_piped_runs() {
+  # `curl ... | bash` 처럼 stdin 으로 실행하면 BASH_SOURCE 가 없다. set -u 라
+  # 그냥 쓰면 'unbound variable' 로 죽는다(문서화된 주 설치 경로!).
+  unset HC_SOURCE_DIR
+  export HC_HOME="$(mktemp -d)" HC_LATEST_VERSION=0.2.0 HC_DRY_RUN=1
+  local out; out="$(bash < "$HERE/../entry/bootstrap.sh" 2>&1)"
+  if printf '%s' "$out" | grep -q 'unbound variable'; then
+    assert_eq "unbound variable 없음" "$out" "파이프에서 BASH_SOURCE 미설정을 견딘다"
+  else
+    assert_eq "ok" "ok" "파이프에서 BASH_SOURCE 미설정을 견딘다"
+  fi
+  assert_contains "$out" "hermes-paperclip-0.2.0.zip" "파이프 실행에서도 계획을 출력한다"
+}
+run_tests t_source_dir t_release_plan t_forwards_all_args t_piped_runs

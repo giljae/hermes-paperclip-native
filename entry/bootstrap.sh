@@ -7,7 +7,13 @@
 #   3) 아니면 릴리스에서 zip 을 받아 검증한 뒤 실행한다.
 set -uo pipefail
 
-HC_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `curl … | bash` 로 실행하면 BASH_SOURCE 가 없다(BASH_SOURCE[0] 를 그냥 쓰면
+# set -u 에서 'unbound variable' 로 죽는다 — 문서화된 주 설치 경로).
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+  HC_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  HC_SELF_DIR=""
+fi
 HC_HOME="${HC_HOME:-$HOME/.hermes-paperclip-native}"
 HC_RELEASE_BASE="${HC_RELEASE_BASE:-https://github.com/giljae/hermes-paperclip-native/releases/latest/download}"
 
@@ -86,6 +92,6 @@ bootstrap_main() {
   exec bash "$appdir/core/run.sh" "$@"
 }
 
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+if [ -z "${BASH_SOURCE[0]:-}" ] || [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   bootstrap_main "$@"
 fi
