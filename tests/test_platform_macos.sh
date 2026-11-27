@@ -118,7 +118,18 @@ t_require_rejects_old_macos() {
   P_OS_VERSION="$keep"
   assert_status 1 $rc "macOS 13 미만은 거부한다"
 }
-run_tests t_require_accepts_current t_require_rejects_old_macos \
+t_autostart_install_no_die() {
+  # launchctl bootstrap 실패 시 hc_die(강제 종료) 대신 return 1 이어야 한다 —
+  # 그래야 step_autostart 의 백그라운드 폘백이 동작한다.
+  p_run() { "$@"; }
+  launchctl() { return 1; }
+  p_autostart_render() { printf '<plist/>\n'; }
+  HC_SKIP_AUTOSTART=
+  local out; out="$( p_autostart_install >/dev/null 2>&1; printf 'RC=%s' "$?" )"
+  assert_contains "$out" "RC=1" "bootstrap 실패를 return 1 로 알린다(죽지 않음)"
+}
+run_tests t_autostart_install_no_die \
+          t_require_accepts_current t_require_rejects_old_macos \
           t_detect t_paths t_node_url_arm t_node_url_x64 t_url_default t_url_from_cfg \
           t_install_node_skips t_persist_once t_install_node_unsets_other_node \
           t_uv_present_true t_uv_skip t_hermes_present t_hermes_pins \

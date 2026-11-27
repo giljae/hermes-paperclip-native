@@ -89,7 +89,7 @@ p_autostart_install() {
   mkdir -p "$(dirname "$plist")"
   p_autostart_render > "$plist" || return 1
   p_run launchctl bootout "gui/$UID/$(p_autostart_label)" >/dev/null 2>&1 || true
-  p_run launchctl bootstrap "gui/$UID" "$plist" || hc_die "자동 시작 등록에 실패했습니다."
+  p_run launchctl bootstrap "gui/$UID" "$plist" || return 1
   return 0
 }
 
