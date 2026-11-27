@@ -63,14 +63,20 @@ bootstrap_download() {
 }
 
 bootstrap_main() {
-  local cmd="${1:-install}" v appdir
+  local cmd v appdir
+  # `curl … | bash` 처럼 인자 없이 실행하면 install 이 기본이다.
+  local -a rest=("$@")
+  if [ "$#" -eq 0 ]; then
+    rest=(install)
+  fi
+  cmd="${rest[0]}"
 
   if [ -n "${HC_SOURCE_DIR:-}" ] && [ -f "$HC_SOURCE_DIR/core/run.sh" ]; then
-    exec bash "$HC_SOURCE_DIR/core/run.sh" "$@"
+    exec bash "$HC_SOURCE_DIR/core/run.sh" "${rest[@]}"
   fi
 
   if [ -f "$HC_SELF_DIR/core/run.sh" ]; then
-    exec bash "$HC_SELF_DIR/core/run.sh" "$@"
+    exec bash "$HC_SELF_DIR/core/run.sh" "${rest[@]}"
   fi
 
   if [ -n "${HC_DRY_RUN:-}" ]; then
@@ -89,7 +95,7 @@ bootstrap_main() {
     bootstrap_download "$v" "$appdir" || return 1
   fi
 
-  exec bash "$appdir/core/run.sh" "$@"
+  exec bash "$appdir/core/run.sh" "${rest[@]}"
 }
 
 if [ -z "${BASH_SOURCE[0]:-}" ] || [ "${BASH_SOURCE[0]}" = "${0}" ]; then

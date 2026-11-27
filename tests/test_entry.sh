@@ -45,4 +45,15 @@ t_piped_runs() {
   fi
   assert_contains "$out" "hermes-paperclip-0.2.0.zip" "파이프 실행에서도 계획을 출력한다"
 }
-run_tests t_source_dir t_release_plan t_forwards_all_args t_piped_runs
+t_piped_defaults_install() {
+  # `curl … | bash` 에는 인자가 없다. 기본이 install 이어야 한다(run.sh 가 사용법만
+  # 출력하면 안 된다). 가짜 체크아웃으로 전달되는 인자를 관찰한다.
+  unset HC_HOME HC_DRY_RUN
+  local src; src="$(mktemp -d)"; mkdir -p "$src/core"
+  printf '#!/usr/bin/env bash\nprintf "ARGS:%%s\\n" "$*"\n' > "$src/core/run.sh"
+  export HC_SOURCE_DIR="$src"
+  local out; out="$(bash < "$HERE/../entry/bootstrap.sh" 2>&1)"
+  assert_contains "$out" "ARGS:install" "인자 없이 실행하면 install 로 기본값을 넘긴다"
+  export HC_SOURCE_DIR="$HERE/.."
+}
+run_tests t_source_dir t_release_plan t_forwards_all_args t_piped_runs t_piped_defaults_install
