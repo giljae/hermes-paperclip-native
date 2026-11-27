@@ -371,7 +371,23 @@ function Start-HcServerBackground {
     return $true
 }
 
+# 잔존하는 내장 Postgres·node 를 정리한다. 이것들이 남으면 HC_HOME 아래
+# (paperclip\node_modules\@embedded-postgres, logs\server-*.out) 파일을 잠가 제거가
+# 실패한다(실측: '제거 후에도 설치 상태가 남아 있다' + postgres 프로세스 잔존).
+# taskkill /T 가 자식을 못 잡는 경우가 있어 경로(HC_HOME 아래)로 한 번 더 확인한다.
+function Stop-HcLingeringServer {
+    $appDir = Get-HcAppDir
+    Get-Process -Name postgres, node -ErrorAction SilentlyContinue | ForEach-Object {
+        $path = $null
+        try { $path = $_.Path } catch { }
+        if ($path -and $path.StartsWith($appDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Stop-HcServerBackground {
+    if ($env:OS -eq "Windows_NT") { Stop-HcLingeringServer }
     $f = Get-HcServerPidFile
     if (-not (Test-Path -LiteralPath $f)) { return $true }
     $raw = (Get-Content -LiteralPath $f -Raw).Trim()
@@ -395,6 +411,7 @@ function Stop-HcServerBackground {
                 Start-Sleep -Milliseconds 500
                 if ($null -eq (Get-Process -Id $serverPid -ErrorAction SilentlyContinue)) { break }
             }
+            Stop-HcLingeringServer
         } else {
             try { Stop-Process -Id $serverPid -Force -ErrorAction Stop } catch { }
         }
